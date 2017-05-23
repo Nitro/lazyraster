@@ -8,7 +8,7 @@ MuPDF is the PDF engine that drives the rasterizer.
 Building It
 -----------
 
-*You MUST first install and build [LazyPdf](https://github.com/Nitro/lazypdf)*
+**You MUST first install and build [LazyPdf](https://github.com/Nitro/lazypdf)**
 
 This requires some C library dependencies that are not vendored in this
 project. Install it in the correct location in your `GOPATH` so that it
