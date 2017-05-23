@@ -5,6 +5,17 @@ A caching PDF rasterizer that uses a filecache and a hashring to distribute load
 
 MuPDF is the PDF engine that drives the rasterizer.
 
+Building It
+-----------
+
+*You MUST first install and build [LazyPdf](https://github.com/Nitro/lazypdf)*
+
+This requires some C library dependencies that are not vendored in this
+project. Install it in the correct location in your `GOPATH` so that it
+can be found in the correct location when building this project.
+
+Once that is installed, this project builds with a simple `go build`.
+
 Running It
 ----------
 
