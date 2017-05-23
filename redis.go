@@ -1,0 +1,87 @@
+package main
+
+// This file is licensed under the MIT license.
+// Copyright (c) 2017 Nitro Software
+
+import (
+	"errors"
+	"strings"
+	"time"
+
+    log "github.com/Sirupsen/logrus"
+	"github.com/Nitro/ringman"
+	"github.com/bsm/redeo"
+)
+
+func measureSince(label string, startTime time.Time) {
+	log.Debugf("%s: %s", label, time.Now().Sub(startTime))
+}
+
+// serveRedis runs the Redis protocol server
+func serveRedis(addr string, ringman *ringman.HashRingManager) error {
+	if strings.Index(addr, ":") == -1 {
+		return errors.New("serveRedis(): Invalid address supplied. Must be of form 'addr:port' or ':port'")
+	}
+
+	if ringman == nil {
+		return errors.New("serveRedis(): HashRingManager was nil!")
+	}
+
+	srv := redeo.NewServer(&redeo.Config{Addr: addr})
+
+	srv.HandleFunc("ping", func(out *redeo.Responder, _ *redeo.Request) error {
+		out.WriteInlineString("PONG")
+		return nil
+	})
+
+	srv.HandleFunc("info", func(out *redeo.Responder, _ *redeo.Request) error {
+		out.WriteString(srv.Info().String())
+		return nil
+	})
+
+	srv.HandleFunc("select", func(out *redeo.Responder, _ *redeo.Request) error {
+		defer measureSince("select", time.Now().UTC())
+
+		out.WriteOK()
+		return nil
+	})
+
+	srv.HandleFunc("get", func(out *redeo.Responder, req *redeo.Request) error {
+		defer measureSince("get", time.Now())
+
+		if len(req.Args) != 1 {
+			return req.WrongNumberOfArgs()
+		}
+		node, err := ringman.GetNode(req.Args[0])
+		if err != nil {
+			log.Errorf("Error fetching key '%s': %s", req.Args[0], err)
+			return err
+		}
+
+		out.WriteString(node)
+		return nil
+	})
+
+	srv.HandleFunc("client", func(out *redeo.Responder, req *redeo.Request) error {
+		if len(req.Args) != 1 {
+			return req.WrongNumberOfArgs()
+		}
+
+		switch req.Args[0] {
+		case "list":
+			out.WriteString(srv.Info().ClientsString())
+		default:
+			return req.UnknownCommand()
+		}
+		return nil
+	})
+
+	log.Infof("Listening on tcp://%s", srv.Addr())
+	err := srv.ListenAndServe()
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
