@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-    log "github.com/Sirupsen/logrus"
 	"github.com/Nitro/ringman"
+	log "github.com/Sirupsen/logrus"
 	"github.com/bsm/redeo"
 )
 
