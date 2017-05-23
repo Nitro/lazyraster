@@ -8,10 +8,6 @@
 			"Rev": "a04e9f680266c055b2ceeee36aacfe0dcfe4593f"
 		},
 		{
-			"ImportPath": "github.com/Nitro/lazypdf",
-			"Rev": "c39188841277fc5484fe7d35069f955105d267c7"
-		},
-		{
 			"ImportPath": "github.com/Nitro/memberlist",
 			"Rev": "490eb18c36b5181b667a4cf41d05eabacd855aad"
 		},
