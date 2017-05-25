@@ -69,6 +69,12 @@ func (r *RasterCache) GetRasterizer(filename string) (*lazypdf.Rasterizer, error
 	return raster, nil
 }
 
+// Clean out everyting in the rasterizer cache. This will trigger onEvicted() for
+// each item in the cache.
+func (r *RasterCache) Purge() {
+	r.rasterizers.Purge()
+}
+
 // onEvicted is the callback that is used when something is removed from the cache,
 // either explicitly or via algorithmic removal based on the LRU calculation.
 func (r *RasterCache) onEvicted(key interface{}, value interface{}) {

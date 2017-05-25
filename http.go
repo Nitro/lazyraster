@@ -6,6 +6,7 @@ import (
 	"image/jpeg"
 	"image/png"
 	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"regexp"
 	"strconv"
@@ -76,6 +77,15 @@ func makeCacheHandler(wrapped func(http.ResponseWriter, *http.Request, *filecach
 	return func(w http.ResponseWriter, r *http.Request) {
 		wrapped(w, r, cache, rasterCache)
 	}
+}
+
+func handleClearRasterCache(w http.ResponseWriter, r *http.Request, cache *filecache.FileCache, rasterCache *RasterCache) {
+	defer r.Body.Close()
+
+	rasterCache.Purge()
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write([]byte(`{"status": "ok"}`))
 }
 
 // handleImage is an HTTP handler that responds to requests for pages
@@ -155,6 +165,7 @@ func serveHttp(config *Config, cache *filecache.FileCache, ring *ringman.Memberl
 	http.HandleFunc("/favicon.ico", http.NotFound)
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("OK")) })
 	http.Handle("/hashring/", http.StripPrefix("/hashring", ring.HttpMux()))
+	http.HandleFunc("/rastercache/free", makeCacheHandler(handleClearRasterCache, cache, rasterCache))
 	http.HandleFunc("/", makeCacheHandler(handleImage, cache, rasterCache))
 	err := http.ListenAndServe(
 		fmt.Sprintf(":%s", config.Port), handlers.LoggingHandler(os.Stdout, http.DefaultServeMux),
