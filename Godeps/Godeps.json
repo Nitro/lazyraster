@@ -5,7 +5,7 @@
 	"Deps": [
 		{
 			"ImportPath": "github.com/Nitro/filecache",
-			"Rev": "a04e9f680266c055b2ceeee36aacfe0dcfe4593f"
+			"Rev": "7a63bd6792c23c7d5bb5739f10d834d99560c71f"
 		},
 		{
 			"ImportPath": "github.com/Nitro/memberlist",

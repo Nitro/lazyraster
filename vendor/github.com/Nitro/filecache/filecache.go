@@ -16,6 +16,7 @@ type FileCache struct {
 	Waiting      map[string]chan struct{}
 	WaitLock     sync.Mutex
 	DownloadFunc func(fname string, localPath string) error
+	OnEvict      func(key interface{}, value interface{})
 }
 
 // New returns a properly configured cache. Bubbles up errors from the Hashicrorp
@@ -23,17 +24,18 @@ type FileCache struct {
 // noop DownloadFunc, which should be replaced if you want to actually get files
 // from somewhere. Or, look at NewS3Cache() which is backed by Amazon S3.
 func New(size int, baseDir string) (*FileCache, error) {
-	cache, err := lru.NewWithEvict(size, onEvictDelete)
-	if err != nil {
-		return nil, err
-	}
-
 	fCache := &FileCache{
-		Cache:        cache,
 		BaseDir:      baseDir,
 		Waiting:      make(map[string]chan struct{}),
 		DownloadFunc: func(fname string, localPath string) error { return nil },
 	}
+
+	cache, err := lru.NewWithEvict(size, fCache.onEvictDelete)
+	if err != nil {
+		return nil, err
+	}
+
+	fCache.Cache = cache
 
 	return fCache, nil
 }
@@ -131,9 +133,13 @@ func (c *FileCache) GetFileName(filename string) string {
 
 // onEvictDelete is a callback that is triggered when the LRU cache expires an
 // entry.
-func onEvictDelete(key interface{}, value interface{}) {
+func (c *FileCache) onEvictDelete(key interface{}, value interface{}) {
 	filename := key.(string)
 	storagePath := value.(string)
+
+	if c.OnEvict != nil {
+		c.OnEvict(key, value)
+	}
 
 	log.Debugf("Got eviction notice for '%s', removing", key)
 
