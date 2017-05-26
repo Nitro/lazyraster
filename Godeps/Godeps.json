@@ -1,5 +1,5 @@
 {
-	"ImportPath": "github.com/Nitro/lazy2",
+	"ImportPath": "github.com/Nitro/lazyraster",
 	"GoVersion": "go1.8",
 	"GodepVersion": "v79",
 	"Deps": [
@@ -8,12 +8,8 @@
 			"Rev": "7a63bd6792c23c7d5bb5739f10d834d99560c71f"
 		},
 		{
-			"ImportPath": "github.com/Nitro/memberlist",
-			"Rev": "490eb18c36b5181b667a4cf41d05eabacd855aad"
-		},
-		{
 			"ImportPath": "github.com/Nitro/ringman",
-			"Rev": "42ac5747c55a8faef6697896082729e809a54f7e"
+			"Rev": "4f60aeedcb58c87ed04fd76b82e711c4e452af29"
 		},
 		{
 			"ImportPath": "github.com/Sirupsen/logrus",
@@ -174,12 +170,21 @@
 			"Rev": "d30f09973e19c1dfcd120b2d9c4f168e68d6b5d5"
 		},
 		{
+			"ImportPath": "github.com/hashicorp/go-sockaddr",
+			"Rev": "2d10d7c10258d11196c0ebf2943509e4afd06cd4"
+		},
+		{
 			"ImportPath": "github.com/hashicorp/golang-lru",
 			"Rev": "0a025b7e63adc15a622f29b0b2c4c3848243bbf6"
 		},
 		{
 			"ImportPath": "github.com/hashicorp/golang-lru/simplelru",
 			"Rev": "0a025b7e63adc15a622f29b0b2c4c3848243bbf6"
+		},
+		{
+			"ImportPath": "github.com/hashicorp/memberlist",
+			"Comment": "v0.1.0-5-gad8cadc",
+			"Rev": "ad8cadc6aa86f1156b41943dea3a6655d9dd79d9"
 		},
 		{
 			"ImportPath": "github.com/jmespath/go-jmespath",
@@ -203,6 +208,10 @@
 			"ImportPath": "github.com/relistan/rubberneck",
 			"Comment": "v1.0.1",
 			"Rev": "4c696efeea6013864af139313af7c7492458fbbf"
+		},
+		{
+			"ImportPath": "github.com/sean-/seed",
+			"Rev": "e2103e2c35297fb7e17febb81e49b312087a2372"
 		},
 		{
 			"ImportPath": "github.com/serialx/hashring",
