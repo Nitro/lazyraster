@@ -32,11 +32,6 @@ func main() {
 	envconfig.Process("raster", &config)
 	rubberneck.NewPrinter(log.Infof, rubberneck.NoAddLineFeed).Print(config)
 
-	cache, err := filecache.NewS3Cache(512, config.BaseDir, config.S3Bucket, config.AwsRegion)
-	if err != nil {
-		log.Fatalf("Unable to create LRU cache: %s", err)
-	}
-
 	ring, err := ringman.NewDefaultMemberlistRing(config.ClusterSeeds, config.Port)
 	if err != nil {
 		log.Fatalf("Unble to establish memberlist ring: %s", err)
@@ -47,6 +42,17 @@ func main() {
 		log.Fatalf("Unble to initialize the rasterizer cache: %s", err)
 	}
 
+	fCache, err := filecache.NewS3Cache(512, config.BaseDir, config.S3Bucket, config.AwsRegion)
+	if err != nil {
+		log.Fatalf("Unable to create LRU cache: %s", err)
+	}
+
+	fCache.OnEvict = func(hashKey interface{}, filename interface{}) {
+		// We need to make sure we delete a rasterizer if one exists and the file
+		// has been deleted out from under it.
+		rasterCache.Remove(filename.(string)) // Actual filename on disk
+	}
+
 	// Run the Redis protocol server and wire it up to our hash ring
 	go func() {
 		err := serveRedis(fmt.Sprintf(":%d", config.RedisPort), ring.Manager)
@@ -55,7 +61,7 @@ func main() {
 		}
 	}()
 
-	err = serveHttp(&config, cache, ring, rasterCache)
+	err = serveHttp(&config, fCache, ring, rasterCache)
 	if err != nil {
 		panic(err.Error())
 	}

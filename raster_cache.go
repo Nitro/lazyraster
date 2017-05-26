@@ -69,6 +69,13 @@ func (r *RasterCache) GetRasterizer(filename string) (*lazypdf.Rasterizer, error
 	return raster, nil
 }
 
+// Remove checks if a file is present in the cache and then removes it.
+func (r *RasterCache) Remove(filename string) {
+	if r.rasterizers.Contains(filename) {
+		r.rasterizers.Remove(filename)
+	}
+}
+
 // Clean out everyting in the rasterizer cache. This will trigger onEvicted() for
 // each item in the cache.
 func (r *RasterCache) Purge() {

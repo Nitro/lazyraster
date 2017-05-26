@@ -61,6 +61,23 @@ func Test_GetRasterizer(t *testing.T) {
 	})
 }
 
+func Test_Remove(t *testing.T) {
+	Convey("Remove()", t, func() {
+		Convey("removes a file", func() {
+			cache, _ := NewRasterCache(1)
+
+			raster, _ := cache.GetRasterizer(fixture)
+			So(raster, ShouldNotBeNil)
+
+			cache.Remove(fixture)
+
+			raster2, _ := cache.GetRasterizer(fixture)
+			So(raster2, ShouldNotBeNil)
+			So(raster, ShouldNotEqual, raster2)
+		})
+	})
+}
+
 func Test_onEvicted(t *testing.T) {
 	Convey("Handling eviction from the cache", t, func() {
 		cache, err := NewRasterCache(2)
