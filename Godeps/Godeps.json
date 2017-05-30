@@ -9,7 +9,7 @@
 		},
 		{
 			"ImportPath": "github.com/Nitro/ringman",
-			"Rev": "5cef95f29e70785187daf8875f4ddf9e5f213686"
+			"Rev": "9a4020b2f703a671377dc179e75818648536bdd1"
 		},
 		{
 			"ImportPath": "github.com/Sirupsen/logrus",
