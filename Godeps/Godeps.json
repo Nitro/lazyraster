@@ -9,7 +9,7 @@
 		},
 		{
 			"ImportPath": "github.com/Nitro/ringman",
-			"Rev": "4f60aeedcb58c87ed04fd76b82e711c4e452af29"
+			"Rev": "5cef95f29e70785187daf8875f4ddf9e5f213686"
 		},
 		{
 			"ImportPath": "github.com/Sirupsen/logrus",
@@ -245,6 +245,10 @@
 		{
 			"ImportPath": "golang.org/x/sys/unix",
 			"Rev": "002cbb5f952456d0c50e0d2aff17ea5eca716979"
+		},
+		{
+			"ImportPath": "github.com/hashicorp/memberlist",
+			"Rev": "022f08198efdd4f4a5eb6645123ad88a20a0afc0"
 		}
 	]
 }
