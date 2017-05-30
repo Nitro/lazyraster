@@ -16,6 +16,9 @@ type Config struct {
 	// make a NetTransport using BindAddr and BindPort from this structure.
 	Transport Transport
 
+	// Name of the cluster
+	ClusterName string
+
 	// Configuration related to what address to bind to and ports to
 	// listen on. The port is used for both UDP and TCP gossip. It is
 	// assumed other nodes are running on this port, but they do not need
@@ -141,6 +144,22 @@ type Config struct {
 	GossipNodes         int
 	GossipToTheDeadTime time.Duration
 
+	//
+	// GossipMessages is the number of times we try to get new messages within
+	// each GossipInterval. Each set of messages is sent to GossipNodes number
+	// of nodes.
+	GossipMessages int
+
+	// GossipVerifyIncoming controls whether to enforce encryption for incoming
+	// gossip. It is used for upshifting from unencrypted to encrypted gossip on
+	// a running cluster.
+	GossipVerifyIncoming bool
+
+	// GossipVerifyOutgoing controls whether to enforce encryption for outgoing
+	// gossip. It is used for upshifting from unencrypted to encrypted gossip on
+	// a running cluster.
+	GossipVerifyOutgoing bool
+
 	// EnableCompression is used to control message compression. This can
 	// be used to reduce bandwidth usage at the cost of slightly more CPU
 	// utilization. This is only available starting at protocol version 1.
@@ -205,6 +224,10 @@ type Config struct {
 	// This is a legacy name for backward compatibility but should really be
 	// called PacketBufferSize now that we have generalized the transport.
 	UDPBufferSize int
+
+	// Prefer TCP-based DNS lookup. Do we use a memberlist custom lookup function
+	// first, using deprecated ANY record, or just rely on Go's DNS resolver?
+	PreferTCPDNS bool
 }
 
 // DefaultLANConfig returns a sane set of configurations for Memberlist.
@@ -217,6 +240,7 @@ func DefaultLANConfig() *Config {
 	hostname, _ := os.Hostname()
 	return &Config{
 		Name:                    hostname,
+		ClusterName:             "default",
 		BindAddr:                "0.0.0.0",
 		BindPort:                7946,
 		AdvertiseAddr:           "",
@@ -233,9 +257,12 @@ func DefaultLANConfig() *Config {
 		DisableTcpPings:         false,                  // TCP pings are safe, even with mixed versions
 		AwarenessMaxMultiplier:  8,                      // Probe interval backs off to 8 seconds
 
-		GossipNodes:         3,                      // Gossip to 3 nodes
-		GossipInterval:      200 * time.Millisecond, // Gossip more rapidly
-		GossipToTheDeadTime: 30 * time.Second,       // Same as push/pull
+		GossipNodes:          3,                      // Gossip to 3 nodes
+		GossipMessages:       3,                      // Ask for 3 sets of messages on each pass
+		GossipInterval:       200 * time.Millisecond, // Gossip more rapidly
+		GossipToTheDeadTime:  30 * time.Second,       // Same as push/pull
+		GossipVerifyIncoming: true,
+		GossipVerifyOutgoing: true,
 
 		EnableCompression: true, // Enable compression by default
 
@@ -243,6 +270,7 @@ func DefaultLANConfig() *Config {
 		Keyring:   nil,
 
 		DNSConfigPath: "/etc/resolv.conf",
+		PreferTCPDNS:  true,
 
 		HandoffQueueDepth: 1024,
 		UDPBufferSize:     1400,
@@ -259,7 +287,8 @@ func DefaultWANConfig() *Config {
 	conf.PushPullInterval = 60 * time.Second
 	conf.ProbeTimeout = 3 * time.Second
 	conf.ProbeInterval = 5 * time.Second
-	conf.GossipNodes = 4 // Gossip less frequently, but to an additional node
+	conf.GossipNodes = 4    // Gossip less frequently, but to an additional node
+	conf.GossipMessages = 4 // Ask for 4 sets of messages on each pass
 	conf.GossipInterval = 500 * time.Millisecond
 	conf.GossipToTheDeadTime = 60 * time.Second
 	return conf
@@ -277,6 +306,7 @@ func DefaultLocalConfig() *Config {
 	conf.PushPullInterval = 15 * time.Second
 	conf.ProbeTimeout = 200 * time.Millisecond
 	conf.ProbeInterval = time.Second
+	conf.GossipMessages = 2 // There are usually fewer nodes in this environment
 	conf.GossipInterval = 100 * time.Millisecond
 	conf.GossipToTheDeadTime = 15 * time.Second
 	return conf

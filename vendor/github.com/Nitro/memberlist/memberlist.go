@@ -300,15 +300,19 @@ func (m *Memberlist) resolveAddr(hostStr string) ([]ipPort, error) {
 		return []ipPort{ipPort{ip, port}}, nil
 	}
 
-	// First try TCP so we have the best chance for the largest list of
-	// hosts to join. If this fails it's not fatal since this isn't a standard
-	// way to query DNS, and we have a fallback below.
-	ips, err := m.tcpLookupIP(host, port)
-	if err != nil {
-		m.logger.Printf("[DEBUG] memberlist: TCP-first lookup failed for '%s', falling back to UDP: %s", hostStr, err)
-	}
-	if len(ips) > 0 {
-		return ips, nil
+	var ips []ipPort
+
+	if m.config.PreferTCPDNS {
+		// First try TCP so we have the best chance for the largest list of
+		// hosts to join. If this fails it's not fatal since this isn't a standard
+		// way to query DNS, and we have a fallback below.
+		ips, err = m.tcpLookupIP(host, port)
+		if err != nil {
+			m.logger.Printf("[DEBUG] memberlist: TCP-first lookup failed for '%s', falling back to UDP: %s", hostStr, err)
+		}
+		if len(ips) > 0 {
+			return ips, nil
+		}
 	}
 
 	// If TCP didn't yield anything then use the normal Go resolver which
@@ -364,6 +368,7 @@ func (m *Memberlist) setAlive() error {
 	a := alive{
 		Incarnation: m.nextIncarnation(),
 		Node:        m.config.Name,
+		ClusterName: m.ClusterName(),
 		Addr:        addr,
 		Port:        uint16(port),
 		Meta:        meta,
@@ -409,6 +414,7 @@ func (m *Memberlist) UpdateNode(timeout time.Duration) error {
 	a := alive{
 		Incarnation: m.nextIncarnation(),
 		Node:        m.config.Name,
+		ClusterName: m.ClusterName(),
 		Addr:        state.Addr,
 		Port:        state.Port,
 		Meta:        meta,
@@ -547,6 +553,7 @@ func (m *Memberlist) Leave(timeout time.Duration) error {
 		d := dead{
 			Incarnation: state.Incarnation,
 			Node:        state.Name,
+			ClusterName: m.ClusterName(),
 		}
 		m.deadNode(&d)
 
@@ -622,4 +629,9 @@ func (m *Memberlist) Shutdown() error {
 	close(m.shutdownCh)
 	m.deschedule()
 	return nil
+}
+
+// ClusterName returns the ClusterName from the config struct
+func (m *Memberlist) ClusterName() string {
+	return m.config.ClusterName
 }

@@ -269,7 +269,8 @@ func (m *Memberlist) probeNode(node *nodeState) {
 		} else {
 			msgs = append(msgs, buf.Bytes())
 		}
-		s := suspect{Incarnation: node.Incarnation, Node: node.Name, From: m.config.Name}
+		s := suspect{Incarnation: node.Incarnation, Node: node.Name, From: m.config.Name,
+			ClusterName: m.ClusterName()}
 		if buf, err := encode(suspectMsg, &s); err != nil {
 			m.logger.Printf("[ERR] memberlist: Failed to encode suspect message: %s", err)
 			return
@@ -413,7 +414,8 @@ func (m *Memberlist) probeNode(node *nodeState) {
 
 	// No acks received from target, suspect it as failed.
 	m.logger.Printf("[INFO] memberlist: Suspect %s has failed, no acks received", node.Name)
-	s := suspect{Incarnation: node.Incarnation, Node: node.Name, From: m.config.Name}
+	s := suspect{Incarnation: node.Incarnation, Node: node.Name, From: m.config.Name,
+		ClusterName: m.ClusterName()}
 	m.suspectNode(&s)
 }
 
@@ -504,24 +506,30 @@ func (m *Memberlist) gossip() {
 		bytesAvail -= encryptOverhead(m.encryptionVersion())
 	}
 
-	for _, node := range kNodes {
+	// We try back-to-back to get a few broadcasts
+	for i := 0; i < m.config.GossipMessages; i++ {
 		// Get any pending broadcasts
 		msgs := m.getBroadcasts(compoundOverhead, bytesAvail)
 		if len(msgs) == 0 {
 			return
 		}
 
-		addr := node.Address()
-		if len(msgs) == 1 {
-			// Send single message as is
-			if err := m.rawSendMsgPacket(addr, &node.Node, msgs[0]); err != nil {
-				m.logger.Printf("[ERR] memberlist: Failed to send gossip to %s: %s", addr, err)
-			}
-		} else {
-			// Otherwise create and send a compound message
-			compound := makeCompoundMessage(msgs)
-			if err := m.rawSendMsgPacket(addr, &node.Node, compound.Bytes()); err != nil {
-				m.logger.Printf("[ERR] memberlist: Failed to send gossip to %s: %s", addr, err)
+		// Create a compound message
+		compound := makeCompoundMessage(msgs)
+
+		// We send the same broadcast to each selected Node
+		for _, node := range kNodes {
+			addr := node.Address()
+			if len(msgs) == 1 {
+				// Send single message as is
+				if err := m.rawSendMsgPacket(addr, &node.Node, msgs[0]); err != nil {
+					m.logger.Printf("[ERR] memberlist: Failed to send gossip to %s: %s", addr, err)
+				}
+			} else {
+				// Otherwise create and send a compound message
+				if err := m.rawSendMsgPacket(addr, &node.Node, compound.Bytes()); err != nil {
+					m.logger.Printf("[ERR] memberlist: Failed to send gossip to %s: %s", addr, err)
+				}
 			}
 		}
 	}
@@ -813,6 +821,7 @@ func (m *Memberlist) refute(me *nodeState, accusedInc uint32) {
 	a := alive{
 		Incarnation: inc,
 		Node:        me.Name,
+		ClusterName: m.ClusterName(),
 		Addr:        me.Addr,
 		Port:        me.Port,
 		Meta:        me.Meta,
@@ -1076,7 +1085,8 @@ func (m *Memberlist) suspectNode(s *suspect) {
 
 			m.logger.Printf("[INFO] memberlist: Marking %s as failed, suspect timeout reached (%d peer confirmations)",
 				state.Name, numConfirmations)
-			d := dead{Incarnation: state.Incarnation, Node: state.Name, From: m.config.Name}
+			d := dead{Incarnation: state.Incarnation, Node: state.Name,
+				From: m.config.Name, ClusterName: m.ClusterName()}
 			m.deadNode(&d)
 		}
 	}
@@ -1146,6 +1156,7 @@ func (m *Memberlist) mergeState(remote []pushNodeState) {
 			a := alive{
 				Incarnation: r.Incarnation,
 				Node:        r.Name,
+				ClusterName: m.ClusterName(),
 				Addr:        r.Addr,
 				Port:        r.Port,
 				Meta:        r.Meta,
@@ -1158,7 +1169,8 @@ func (m *Memberlist) mergeState(remote []pushNodeState) {
 			// suspect that node instead of declaring it dead instantly
 			fallthrough
 		case stateSuspect:
-			s := suspect{Incarnation: r.Incarnation, Node: r.Name, From: m.config.Name}
+			s := suspect{Incarnation: r.Incarnation, Node: r.Name, From: m.config.Name,
+				ClusterName: m.ClusterName()}
 			m.suspectNode(&s)
 		}
 	}
