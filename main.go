@@ -23,7 +23,7 @@ type Config struct {
 	ClusterSeeds []string `envconfig:"CLUSTER_SEEDS" default:"127.0.0.1"`
 	CacheSize    int      `envconfig:"CACHE_SIZE" default:"512"`
 	RedisPort    int      `envconfig:"REDIS_PORT" default:"6379"`
-	ClusterName  string   `envconfig""CLUSTER_NAME" default:"default"`
+	ClusterName  string   `envconfig:"CLUSTER_NAME" default:"default"`
 }
 
 func main() {
