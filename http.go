@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"image/jpeg"
@@ -160,11 +161,35 @@ func handleImage(w http.ResponseWriter, r *http.Request, cache *filecache.FileCa
 	}
 }
 
+// Health route for the service
+func handleHealth(w http.ResponseWriter, r *http.Request, cache *filecache.FileCache, rasterCache *RasterCache) {
+	defer r.Body.Close()
+
+	healthData := struct{
+		Status string
+		FileCacheSize int
+		RasterCacheSize int
+	}{
+		Status: "OK",
+		FileCacheSize: cache.Cache.Len(),
+		RasterCacheSize: rasterCache.rasterizers.Len(),
+	}
+
+	data, err := json.MarshalIndent(healthData, "", "  ")
+	if err != nil {
+		http.Error(w, `{"status": "error", "message":` + err.Error() + `}`, 500)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(data)
+}
+
 func serveHttp(config *Config, cache *filecache.FileCache, ring *ringman.MemberlistRing, rasterCache *RasterCache) error {
 
 	http.HandleFunc("/favicon.ico", http.NotFound)
-	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("OK")) })
 	http.Handle("/hashring/", http.StripPrefix("/hashring", ring.HttpMux()))
+	http.HandleFunc("/health", makeCacheHandler(handleHealth, cache, rasterCache))
 	http.HandleFunc("/rastercache/free", makeCacheHandler(handleClearRasterCache, cache, rasterCache))
 	http.HandleFunc("/", makeCacheHandler(handleImage, cache, rasterCache))
 	err := http.ListenAndServe(
