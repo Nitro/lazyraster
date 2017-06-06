@@ -2,6 +2,10 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/Nitro/filecache"
 	"github.com/Nitro/memberlist"
@@ -24,6 +28,27 @@ type Config struct {
 	CacheSize    int      `envconfig:"CACHE_SIZE" default:"512"`
 	RedisPort    int      `envconfig:"REDIS_PORT" default:"6379"`
 	ClusterName  string   `envconfig:"CLUSTER_NAME" default:"default"`
+}
+
+// Set up some signal handling for kill/term/int and try to exit the
+// cluster and clean out the cache before we exit.
+func handleSignals(fCache *filecache.FileCache, mList *memberlist.Memberlist) {
+	sigChan := make(chan os.Signal, 1) // Buffered!
+
+	// Grab some signals we want to catch where possible
+	signal.Notify(sigChan, os.Interrupt)
+	signal.Notify(sigChan, os.Kill)
+	signal.Notify(sigChan, syscall.SIGTERM)
+
+	sig := <-sigChan
+	log.Warnf("Received signal '%s', attempting clean shutdown", sig)
+	mList.Leave(2 * time.Second) // 2 second timeout
+	mList.Shutdown()             // Ignore the error, we can't do anything with it
+	go fCache.Cache.Purge()
+
+	log.Info("Clean shutdown initiated... waiting")
+	time.Sleep(3 * time.Second) // Try to let it quit
+	os.Exit(130)                // Ctrl-C received or equivalent
 }
 
 func main() {
@@ -57,6 +82,9 @@ func main() {
 		// has been deleted out from under it.
 		rasterCache.Remove(filename.(string)) // Actual filename on disk
 	}
+
+	// Set up the signal handler to try to clean up on exit
+	go handleSignals(fCache, ring.Memberlist)
 
 	// Run the Redis protocol server and wire it up to our hash ring
 	go func() {
