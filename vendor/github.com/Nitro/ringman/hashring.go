@@ -12,9 +12,9 @@ var (
 )
 
 const (
-	CmdAddNode        = iota
-	CmdRemoveNode     = iota
-	CmdGetNode        = iota
+	CmdAddNode    = iota
+	CmdRemoveNode = iota
+	CmdGetNode    = iota
 )
 
 const (
@@ -22,10 +22,10 @@ const (
 )
 
 type HashRingManager struct {
-	HashRing    *hashring.HashRing
-	cmdChan     chan RingCommand
-	started     bool
-	waitChan    chan struct{}
+	HashRing *hashring.HashRing
+	cmdChan  chan RingCommand
+	started  bool
+	waitChan chan struct{}
 }
 
 type RingCommand struct {
@@ -140,11 +140,7 @@ func (r *HashRingManager) AddNode(nodeName string) error {
 		return nil
 	})
 
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }
 
 // RemoveNode is a blocking call that will send an add message on the message
@@ -155,11 +151,7 @@ func (r *HashRingManager) RemoveNode(nodeName string) error {
 		return nil
 	})
 
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }
 
 // GetNode requests a node from the ring to serve the provided key
@@ -179,4 +171,9 @@ func (r *HashRingManager) GetNode(key string) (string, error) {
 	replyChan = nil
 
 	return reply.Nodes[0], reply.Error
+}
+
+// IsRunning fetches the status of the HashRingManager
+func (r *HashRingManager) IsRunning() bool {
+	return r.started
 }

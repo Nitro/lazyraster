@@ -74,23 +74,51 @@ func widthForRequest(r *http.Request) (int64, error) {
 	return width, nil
 }
 
-func makeCacheHandler(wrapped func(http.ResponseWriter, *http.Request, *filecache.FileCache, *RasterCache), cache *filecache.FileCache, rasterCache *RasterCache) http.HandlerFunc {
+func makeHandler(
+	wrapped func(
+		http.ResponseWriter,
+		*http.Request,
+		*filecache.FileCache,
+		*RasterCache,
+		*ringman.MemberlistRing,
+	),
+	cache *filecache.FileCache,
+	rasterCache *RasterCache,
+	ring *ringman.MemberlistRing,
+) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		wrapped(w, r, cache, rasterCache)
+		wrapped(w, r, cache, rasterCache, ring)
 	}
 }
 
-func handleClearRasterCache(w http.ResponseWriter, r *http.Request, cache *filecache.FileCache, rasterCache *RasterCache) {
+func handleClearRasterCache(
+	w http.ResponseWriter,
+	r *http.Request,
+	cache *filecache.FileCache,
+	rasterCache *RasterCache,
+	ring *ringman.MemberlistRing,
+) {
 	defer r.Body.Close()
+
+	if !ring.Manager.IsRunning() {
+		http.Error(w, "Node is offline", 500)
+		return
+	}
 
 	rasterCache.Purge()
 
 	w.Header().Set("Content-Type", "application/json")
-	w.Write([]byte(`{"status": "ok"}`))
+	w.Write([]byte(`{"status": "OK"}`))
 }
 
 // handleImage is an HTTP handler that responds to requests for pages
-func handleImage(w http.ResponseWriter, r *http.Request, cache *filecache.FileCache, rasterCache *RasterCache) {
+func handleImage(
+	w http.ResponseWriter,
+	r *http.Request,
+	cache *filecache.FileCache,
+	rasterCache *RasterCache,
+	ring *ringman.MemberlistRing,
+) {
 	defer func(startTime time.Time) {
 		log.Debugf("Total request time: %s", time.Now().Sub(startTime))
 	}(time.Now())
@@ -115,6 +143,12 @@ func handleImage(w http.ResponseWriter, r *http.Request, cache *filecache.FileCa
 	// Clean up the URL path into a local filename.
 	filename := sanitizeFilename(r.URL.Path)
 	storagePath := cache.GetFileName(r.URL.Path)
+
+	// Prevent the node from caching any new documents if it has been marked as offline
+	if !ring.Manager.IsRunning() && !cache.Contains(filename) {
+		http.Error(w, "Node is offline", 500)
+		return
+	}
 
 	// Try to get the file from the cache and/or backing store.
 	// NOTE: this can block for a long time while we download a file
@@ -162,22 +196,33 @@ func handleImage(w http.ResponseWriter, r *http.Request, cache *filecache.FileCa
 }
 
 // Health route for the service
-func handleHealth(w http.ResponseWriter, r *http.Request, cache *filecache.FileCache, rasterCache *RasterCache) {
+func handleHealth(
+	w http.ResponseWriter,
+	r *http.Request,
+	cache *filecache.FileCache,
+	rasterCache *RasterCache,
+	ring *ringman.MemberlistRing,
+) {
 	defer r.Body.Close()
 
-	healthData := struct{
-		Status string
-		FileCacheSize int
+	status := "OK"
+	if !ring.Manager.IsRunning() {
+		status = "Offline"
+	}
+
+	healthData := struct {
+		Status          string
+		FileCacheSize   int
 		RasterCacheSize int
 	}{
-		Status: "OK",
-		FileCacheSize: cache.Cache.Len(),
+		Status:          status,
+		FileCacheSize:   cache.Cache.Len(),
 		RasterCacheSize: rasterCache.rasterizers.Len(),
 	}
 
 	data, err := json.MarshalIndent(healthData, "", "  ")
 	if err != nil {
-		http.Error(w, `{"status": "error", "message":` + err.Error() + `}`, 500)
+		http.Error(w, `{"status": "error", "message":`+err.Error()+`}`, 500)
 		return
 	}
 
@@ -185,13 +230,41 @@ func handleHealth(w http.ResponseWriter, r *http.Request, cache *filecache.FileC
 	w.Write(data)
 }
 
-func serveHttp(config *Config, cache *filecache.FileCache, ring *ringman.MemberlistRing, rasterCache *RasterCache) error {
+// handleShutdown creates an HTTP handler for triggering a soft shutdown
+func handleShutdown(
+	w http.ResponseWriter,
+	r *http.Request,
+	cache *filecache.FileCache,
+	_ *RasterCache,
+	ring *ringman.MemberlistRing,
+) {
+	defer r.Body.Close()
 
+	log.Warnf("Shutdown triggered via HTTP")
+
+	ring.Shutdown()
+	go cache.Cache.Purge()
+
+	log.Info("Clean shutdown initiated... waiting")
+	time.Sleep(3 * time.Second) // Try to let it quit
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write([]byte(`{"status": "OK"}`))
+
+}
+
+func serveHttp(
+	config *Config,
+	cache *filecache.FileCache,
+	ring *ringman.MemberlistRing,
+	rasterCache *RasterCache,
+) error {
 	http.HandleFunc("/favicon.ico", http.NotFound)
 	http.Handle("/hashring/", http.StripPrefix("/hashring", ring.HttpMux()))
-	http.HandleFunc("/health", makeCacheHandler(handleHealth, cache, rasterCache))
-	http.HandleFunc("/rastercache/free", makeCacheHandler(handleClearRasterCache, cache, rasterCache))
-	http.HandleFunc("/", makeCacheHandler(handleImage, cache, rasterCache))
+	http.HandleFunc("/health", makeHandler(handleHealth, cache, rasterCache, ring))
+	http.HandleFunc("/rastercache/free", makeHandler(handleClearRasterCache, cache, rasterCache, ring))
+	http.HandleFunc("/shutdown", makeHandler(handleShutdown, cache, rasterCache, ring))
+	http.HandleFunc("/", makeHandler(handleImage, cache, rasterCache, ring))
 	err := http.ListenAndServe(
 		fmt.Sprintf(":%s", config.Port), handlers.LoggingHandler(os.Stdout, http.DefaultServeMux),
 	)
