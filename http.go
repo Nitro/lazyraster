@@ -11,6 +11,7 @@ import (
 	"os"
 	"regexp"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/Nitro/filecache"
@@ -21,7 +22,8 @@ import (
 )
 
 var (
-	sanitizer *regexp.Regexp = regexp.MustCompile("(^\\/|^/|(^\\./)+|^(\\.\\.)+|^(\\.)+)")
+	sanitizer     *regexp.Regexp = regexp.MustCompile("(^\\/|^/|(^\\./)+|^(\\.\\.)+|^(\\.)+)")
+	shutdownMutex sync.Mutex
 )
 
 func imageQualityForRequest(r *http.Request) int {
@@ -239,6 +241,16 @@ func handleShutdown(
 	ring *ringman.MemberlistRing,
 ) {
 	defer r.Body.Close()
+
+	// Make sure we don't cause undefined behaviour if shutdown gets called
+	// multiple times in parallel
+	shutdownMutex.Lock()
+	defer shutdownMutex.Unlock()
+
+	if !ring.Manager.IsRunning() {
+		http.Error(w, "Node is offline", 500)
+		return
+	}
 
 	log.Warnf("Shutdown triggered via HTTP")
 
