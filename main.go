@@ -16,14 +16,14 @@ const (
 )
 
 type Config struct {
-	BaseDir      string   `envconfig:"BASE_DIR" default:"."`
-	Port         string   `envconfig:"PORT" default:"8000"`
-	AwsRegion    string   `envconfig:"AWS_REGION" default:"us-west-1"`
-	S3Bucket     string   `envconfig:"S3_BUCKET" default:"nitro-junk"`
-	ClusterSeeds []string `envconfig:"CLUSTER_SEEDS" default:"127.0.0.1"`
-	CacheSize    int      `envconfig:"CACHE_SIZE" default:"512"`
-	RedisPort    int      `envconfig:"REDIS_PORT" default:"6379"`
-	ClusterName  string   `envconfig:"CLUSTER_NAME" default:"default"`
+	BaseDir      string   `split_words:"true" default:"."`
+	Port         string   `split_words:"true" default:"8000"`
+	AwsRegion    string   `split_words:"true" default:"us-west-1"`
+	S3Bucket     string   `split_words:"true" default:"nitro-junk"`
+	ClusterSeeds []string `split_words:"true" default:"127.0.0.1"`
+	CacheSize    int      `split_words:"true" default:"512"`
+	RedisPort    int      `split_words:"true" default:"6379"`
+	ClusterName  string   `split_words:"true" default:"default"`
 }
 
 func main() {
