@@ -20,8 +20,12 @@ import (
 	"github.com/gorilla/handlers"
 )
 
+const (
+	imageMaxWidth = 4096
+)
+
 var (
-	sanitizer *regexp.Regexp = regexp.MustCompile("(^\\/|^/|(^\\./)+|^(\\.\\.)+|^(\\.)+)")
+	sanitizer *regexp.Regexp = regexp.MustCompile(`(^\/|^/|(^\./)+|^(\.\.)+|^(\.)+)`)
 )
 
 func imageQualityForRequest(r *http.Request) int {
@@ -66,8 +70,8 @@ func widthForRequest(r *http.Request) (int64, error) {
 	var err error
 	if r.FormValue("width") != "" {
 		width, err = strconv.ParseInt(r.FormValue("width"), 10, 32)
-		if err != nil || width < 0 || width > ImageMaxWidth {
-			return 0, fmt.Errorf("Invalid width! Limit is %d", ImageMaxWidth)
+		if err != nil || width < 0 || width > imageMaxWidth {
+			return 0, fmt.Errorf("Invalid width! Limit is %d", imageMaxWidth)
 		}
 	}
 
@@ -165,19 +169,19 @@ func handleImage(w http.ResponseWriter, r *http.Request, cache *filecache.FileCa
 func handleHealth(w http.ResponseWriter, r *http.Request, cache *filecache.FileCache, rasterCache *RasterCache) {
 	defer r.Body.Close()
 
-	healthData := struct{
-		Status string
-		FileCacheSize int
+	healthData := struct {
+		Status          string
+		FileCacheSize   int
 		RasterCacheSize int
 	}{
-		Status: "OK",
-		FileCacheSize: cache.Cache.Len(),
+		Status:          "OK",
+		FileCacheSize:   cache.Cache.Len(),
 		RasterCacheSize: rasterCache.rasterizers.Len(),
 	}
 
 	data, err := json.MarshalIndent(healthData, "", "  ")
 	if err != nil {
-		http.Error(w, `{"status": "error", "message":` + err.Error() + `}`, 500)
+		http.Error(w, `{"status": "error", "message":`+err.Error()+`}`, 500)
 		return
 	}
 

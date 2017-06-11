@@ -7,7 +7,7 @@ import (
 )
 
 var (
-	fixture string = "fixtures/sample.pdf"
+	fixture = "fixtures/sample.pdf"
 )
 
 func Test_NewRasterCache(t *testing.T) {

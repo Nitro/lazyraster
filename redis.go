@@ -11,17 +11,17 @@ import (
 )
 
 func measureSince(label string, startTime time.Time) {
-	log.Debugf("%s: %s", label, time.Now().Sub(startTime))
+	log.Debugf("%s: %s", label, time.Since(startTime))
 }
 
 // serveRedis runs the Redis protocol server
 func serveRedis(addr string, ringman *ringman.HashRingManager) error {
-	if strings.Index(addr, ":") == -1 {
+	if !strings.Contains(addr, ":") {
 		return errors.New("serveRedis(): Invalid address supplied. Must be of form 'addr:port' or ':port'")
 	}
 
 	if ringman == nil {
-		return errors.New("serveRedis(): HashRingManager was nil!")
+		return errors.New("serveRedis(): HashRingManager was nil")
 	}
 
 	srv := redeo.NewServer(&redeo.Config{Addr: addr})
@@ -76,9 +76,5 @@ func serveRedis(addr string, ringman *ringman.HashRingManager) error {
 	log.Infof("Listening on tcp://%s", srv.Addr())
 	err := srv.ListenAndServe()
 
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }

@@ -11,10 +11,7 @@ import (
 	"github.com/relistan/rubberneck"
 )
 
-const (
-	ImageMaxWidth = 4096
-)
-
+// Config contains the application configuration parameters
 type Config struct {
 	BaseDir      string   `split_words:"true" default:"."`
 	Port         string   `split_words:"true" default:"8000"`
@@ -31,7 +28,11 @@ func main() {
 
 	var config Config
 
-	envconfig.Process("raster", &config)
+	err := envconfig.Process("raster", &config)
+	if err != nil {
+		log.Fatalf("Failed to parse the configuration parameters: %s", err)
+	}
+
 	rubberneck.NewPrinter(log.Infof, rubberneck.NoAddLineFeed).Print(config)
 
 	ring, err := ringman.NewMemberlistRing(
@@ -60,9 +61,9 @@ func main() {
 
 	// Run the Redis protocol server and wire it up to our hash ring
 	go func() {
-		err := serveRedis(fmt.Sprintf(":%d", config.RedisPort), ring.Manager)
-		if err != nil {
-			log.Fatalf("Error starting Redis protocol server: %s", err)
+		errServeRedis := serveRedis(fmt.Sprintf(":%d", config.RedisPort), ring.Manager)
+		if errServeRedis != nil {
+			log.Fatalf("Error starting Redis protocol server: %s", errServeRedis)
 		}
 	}()
 
