@@ -250,9 +250,6 @@ func handleShutdown(w http.ResponseWriter, r *http.Request,
 	ring.Shutdown()
 	go cache.Cache.Purge()
 
-	log.Info("Clean shutdown initiated... waiting")
-	time.Sleep(3 * time.Second) // Try to let it quit
-
 	w.Header().Set("Content-Type", "application/json")
 	w.Write([]byte(`{"status": "OK"}`))
 
