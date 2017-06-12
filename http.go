@@ -262,7 +262,7 @@ func serveHttp(config *Config, cache *filecache.FileCache, ring *ringman.Memberl
 	http.HandleFunc("/favicon.ico", http.NotFound)
 	http.Handle("/hashring/", http.StripPrefix("/hashring", ring.HttpMux()))
 	http.HandleFunc("/health", makeHandler(handleHealth, cache, rasterCache, ring))
-	http.HandleFunc("/rastercache/free", makeHandler(handleClearRasterCache, cache, rasterCache, ring))
+	http.HandleFunc("/rastercache/purge", makeHandler(handleClearRasterCache, cache, rasterCache, ring))
 	http.HandleFunc("/shutdown", makeHandler(handleShutdown, cache, rasterCache, ring))
 	http.HandleFunc("/", makeHandler(handleImage, cache, rasterCache, ring))
 	err := http.ListenAndServe(
