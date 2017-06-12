@@ -43,7 +43,12 @@ func handleSignals(fCache *filecache.FileCache, mList *memberlist.Memberlist) {
 	sig := <-sigChan
 	log.Warnf("Received signal '%s', attempting clean shutdown", sig)
 	mList.Leave(2 * time.Second) // 2 second timeout
-	mList.Shutdown()             // Ignore the error, we can't do anything with it
+
+	err := mList.Shutdown()
+	if err != nil {
+		log.Warnf("Got error while shutting down Memberlist: %s", err)
+	}
+
 	go fCache.Cache.Purge()
 
 	log.Info("Clean shutdown initiated... waiting")
