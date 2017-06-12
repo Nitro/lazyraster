@@ -219,6 +219,13 @@ func handleHealth(w http.ResponseWriter, r *http.Request,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
+
+	if !ring.Manager.IsRunning() {
+		w.WriteHeader(500)
+		w.Write(data)
+		return
+	}
+
 	w.Write(data)
 }
 
