@@ -21,8 +21,13 @@ import (
 	"github.com/gorilla/handlers"
 )
 
+const (
+	// ImageMaxWidth is the maximum supported image width
+	ImageMaxWidth = 4096
+)
+
 var (
-	sanitizer     *regexp.Regexp = regexp.MustCompile("(^\\/|^/|(^\\./)+|^(\\.\\.)+|^(\\.)+)")
+	sanitizer     *regexp.Regexp = regexp.MustCompile(`(^\/|^/|(^\./)+|^(\.\.)+|^(\.)+)`)
 	shutdownMutex sync.Mutex
 )
 
@@ -64,7 +69,7 @@ func imageTypeForRequest(r *http.Request) string {
 }
 
 func widthForRequest(r *http.Request) (int64, error) {
-	var width int64 = 0
+	var width int64
 	var err error
 	if r.FormValue("width") != "" {
 		width, err = strconv.ParseInt(r.FormValue("width"), 10, 32)
@@ -122,7 +127,7 @@ func handleImage(
 	ring *ringman.MemberlistRing,
 ) {
 	defer func(startTime time.Time) {
-		log.Debugf("Total request time: %s", time.Now().Sub(startTime))
+		log.Debugf("Total request time: %s", time.Since(startTime))
 	}(time.Now())
 
 	defer r.Body.Close()
@@ -162,7 +167,7 @@ func handleImage(
 
 	// Log how long we take to rasterize things
 	defer func(startTime time.Time) {
-		log.Debugf("Raster time %s for %s page %d", time.Now().Sub(startTime), r.URL.Path, page)
+		log.Debugf("Raster time %s for %s page %d", time.Since(startTime), r.URL.Path, page)
 	}(time.Now())
 
 	// Get ahold of a rasterizer for this document, either from the cache,
@@ -191,9 +196,15 @@ func handleImage(
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET")
 	if imageType == "image/jpeg" {
-		jpeg.Encode(w, image, &jpeg.Options{imageQuality})
+		err = jpeg.Encode(w, image, &jpeg.Options{Quality: imageQuality})
 	} else {
-		png.Encode(w, image)
+		err = png.Encode(w, image)
+	}
+
+	if err != nil {
+		msg := fmt.Sprintf("Error while encoding image as '%s': %s", imageType, err)
+		log.Errorf(msg)
+		http.Error(w, msg, 500)
 	}
 }
 

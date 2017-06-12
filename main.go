@@ -11,10 +11,7 @@ import (
 	"github.com/relistan/rubberneck"
 )
 
-const (
-	ImageMaxWidth = 4096
-)
-
+// Config contains the application configuration parameters
 type Config struct {
 	BaseDir      string   `envconfig:"BASE_DIR" default:"."`
 	Port         string   `envconfig:"PORT" default:"8000"`
@@ -31,7 +28,11 @@ func main() {
 
 	var config Config
 
-	envconfig.Process("raster", &config)
+	err := envconfig.Process("raster", &config)
+	if err != nil {
+		log.Fatalf("Failed to parse the configuration parameters: %s", err)
+	}
+
 	rubberneck.NewPrinter(log.Infof, rubberneck.NoAddLineFeed).Print(config)
 
 	ring, err := ringman.NewMemberlistRing(
