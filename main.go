@@ -15,19 +15,16 @@ import (
 	"github.com/relistan/rubberneck"
 )
 
-const (
-	ImageMaxWidth = 4096
-)
-
+// Config contains the application configuration parameters
 type Config struct {
-	BaseDir      string   `envconfig:"BASE_DIR" default:"."`
-	Port         string   `envconfig:"PORT" default:"8000"`
-	AwsRegion    string   `envconfig:"AWS_REGION" default:"us-west-1"`
-	S3Bucket     string   `envconfig:"S3_BUCKET" default:"nitro-junk"`
-	ClusterSeeds []string `envconfig:"CLUSTER_SEEDS" default:"127.0.0.1"`
-	CacheSize    int      `envconfig:"CACHE_SIZE" default:"512"`
-	RedisPort    int      `envconfig:"REDIS_PORT" default:"6379"`
-	ClusterName  string   `envconfig:"CLUSTER_NAME" default:"default"`
+	BaseDir      string   `split_words:"true" default:"."`
+	Port         string   `split_words:"true" default:"8000"`
+	AwsRegion    string   `split_words:"true" default:"us-west-1"`
+	S3Bucket     string   `split_words:"true" default:"nitro-junk"`
+	ClusterSeeds []string `split_words:"true" default:"127.0.0.1"`
+	CacheSize    int      `split_words:"true" default:"512"`
+	RedisPort    int      `split_words:"true" default:"6379"`
+	ClusterName  string   `split_words:"true" default:"default"`
 }
 
 // Set up some signal handling for kill/term/int and try to exit the
@@ -61,7 +58,11 @@ func main() {
 
 	var config Config
 
-	envconfig.Process("raster", &config)
+	err := envconfig.Process("raster", &config)
+	if err != nil {
+		log.Fatalf("Failed to parse the configuration parameters: %s", err)
+	}
+
 	rubberneck.NewPrinter(log.Infof, rubberneck.NoAddLineFeed).Print(config)
 
 	ring, err := ringman.NewMemberlistRing(
@@ -93,9 +94,9 @@ func main() {
 
 	// Run the Redis protocol server and wire it up to our hash ring
 	go func() {
-		err := serveRedis(fmt.Sprintf(":%d", config.RedisPort), ring.Manager)
-		if err != nil {
-			log.Fatalf("Error starting Redis protocol server: %s", err)
+		errServeRedis := serveRedis(fmt.Sprintf(":%d", config.RedisPort), ring.Manager)
+		if errServeRedis != nil {
+			log.Fatalf("Error starting Redis protocol server: %s", errServeRedis)
 		}
 	}()
 
