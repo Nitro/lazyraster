@@ -81,30 +81,17 @@ func widthForRequest(r *http.Request) (int64, error) {
 	return width, nil
 }
 
-func makeHandler(
-	wrapped func(
-		http.ResponseWriter,
-		*http.Request,
-		*filecache.FileCache,
-		*RasterCache,
-		*ringman.MemberlistRing,
-	),
-	cache *filecache.FileCache,
-	rasterCache *RasterCache,
-	ring *ringman.MemberlistRing,
-) http.HandlerFunc {
+func makeHandler(wrapped func(http.ResponseWriter, *http.Request, *filecache.FileCache, *RasterCache, *ringman.MemberlistRing),
+	cache *filecache.FileCache, rasterCache *RasterCache, ring *ringman.MemberlistRing) http.HandlerFunc {
+
 	return func(w http.ResponseWriter, r *http.Request) {
 		wrapped(w, r, cache, rasterCache, ring)
 	}
 }
 
-func handleClearRasterCache(
-	w http.ResponseWriter,
-	r *http.Request,
-	cache *filecache.FileCache,
-	rasterCache *RasterCache,
-	ring *ringman.MemberlistRing,
-) {
+func handleClearRasterCache(w http.ResponseWriter, r *http.Request,
+	cache *filecache.FileCache, rasterCache *RasterCache, ring *ringman.MemberlistRing) {
+
 	defer r.Body.Close()
 
 	if !ring.Manager.IsRunning() {
@@ -119,13 +106,9 @@ func handleClearRasterCache(
 }
 
 // handleImage is an HTTP handler that responds to requests for pages
-func handleImage(
-	w http.ResponseWriter,
-	r *http.Request,
-	cache *filecache.FileCache,
-	rasterCache *RasterCache,
-	ring *ringman.MemberlistRing,
-) {
+func handleImage(w http.ResponseWriter, r *http.Request,
+	cache *filecache.FileCache, rasterCache *RasterCache, ring *ringman.MemberlistRing) {
+
 	defer func(startTime time.Time) {
 		log.Debugf("Total request time: %s", time.Since(startTime))
 	}(time.Now())
@@ -209,13 +192,9 @@ func handleImage(
 }
 
 // Health route for the service
-func handleHealth(
-	w http.ResponseWriter,
-	r *http.Request,
-	cache *filecache.FileCache,
-	rasterCache *RasterCache,
-	ring *ringman.MemberlistRing,
-) {
+func handleHealth(w http.ResponseWriter, r *http.Request,
+	cache *filecache.FileCache, rasterCache *RasterCache, ring *ringman.MemberlistRing) {
+
 	defer r.Body.Close()
 
 	status := "OK"
@@ -244,13 +223,9 @@ func handleHealth(
 }
 
 // handleShutdown creates an HTTP handler for triggering a soft shutdown
-func handleShutdown(
-	w http.ResponseWriter,
-	r *http.Request,
-	cache *filecache.FileCache,
-	_ *RasterCache,
-	ring *ringman.MemberlistRing,
-) {
+func handleShutdown(w http.ResponseWriter, r *http.Request,
+	cache *filecache.FileCache, _ *RasterCache, ring *ringman.MemberlistRing) {
+
 	defer r.Body.Close()
 
 	// Make sure we don't cause undefined behaviour if shutdown gets called
@@ -276,12 +251,7 @@ func handleShutdown(
 
 }
 
-func serveHttp(
-	config *Config,
-	cache *filecache.FileCache,
-	ring *ringman.MemberlistRing,
-	rasterCache *RasterCache,
-) error {
+func serveHttp(config *Config, cache *filecache.FileCache, ring *ringman.MemberlistRing, rasterCache *RasterCache) error {
 	http.HandleFunc("/favicon.ico", http.NotFound)
 	http.Handle("/hashring/", http.StripPrefix("/hashring", ring.HttpMux()))
 	http.HandleFunc("/health", makeHandler(handleHealth, cache, rasterCache, ring))
