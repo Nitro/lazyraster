@@ -15,7 +15,8 @@ import (
 import "C"
 
 const (
-	DefaultRasterCacheSize = 20 // open documents
+	// DefaultRasterCacheSize is the default number of cahced rasterizers for open documents
+	DefaultRasterCacheSize = 20
 )
 
 // RasterCache is a simple LRU cache that holds a number of lazypdf.Rasterizer
@@ -76,7 +77,7 @@ func (r *RasterCache) Remove(filename string) {
 	}
 }
 
-// Clean out everyting in the rasterizer cache. This will trigger onEvicted() for
+// Purge cleans out everyting in the rasterizer cache. This will trigger onEvicted() for
 // each item in the cache.
 func (r *RasterCache) Purge() {
 	r.rasterizers.Purge()
