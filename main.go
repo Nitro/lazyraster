@@ -70,12 +70,12 @@ func main() {
 		config.ClusterSeeds, config.Port, config.ClusterName,
 	)
 	if err != nil {
-		log.Fatalf("Unble to establish memberlist ring: %s", err)
+		log.Fatalf("Unable to establish memberlist ring: %s", err)
 	}
 
 	rasterCache, err := NewDefaultRasterCache()
 	if err != nil {
-		log.Fatalf("Unble to initialize the rasterizer cache: %s", err)
+		log.Fatalf("Unable to initialize the rasterizer cache: %s", err)
 	}
 
 	fCache, err := filecache.NewS3Cache(512, config.BaseDir, config.S3Bucket, config.AwsRegion)
