@@ -26,7 +26,7 @@ type Config struct {
 	RedisPort    int      `envconfig:"REDIS_PORT" default:"6379"`
 	ClusterName  string   `envconfig:"CLUSTER_NAME" default:"default"`
 	// Change this to some other port when running on the same box as Sidecar
-	MLPort int `envconfig:"MEMBERLIST_PORT" default:"7946"`
+	MemberlistPort int `envconfig:"MEMBERLIST_PORT" default:"7946"`
 }
 
 // Set up some signal handling for kill/term/int and try to exit the
@@ -69,8 +69,8 @@ func main() {
 
 	mlConfig := memberlist.DefaultLANConfig()
 
-	mlConfig.BindPort = config.MLPort
-	mlConfig.AdvertisePort = config.MLPort
+	mlConfig.BindPort = config.MemberlistPort
+	mlConfig.AdvertisePort = config.MemberlistPort
 	ring, err := ringman.NewMemberlistRing(
 		mlConfig,
 		config.ClusterSeeds, config.Port, config.ClusterName,
