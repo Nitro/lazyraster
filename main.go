@@ -25,6 +25,8 @@ type Config struct {
 	CacheSize    int      `envconfig:"CACHE_SIZE" default:"512"`
 	RedisPort    int      `envconfig:"REDIS_PORT" default:"6379"`
 	ClusterName  string   `envconfig:"CLUSTER_NAME" default:"default"`
+	// Change this to some other port when running on the same box as Sidecar
+	MemberlistPort int `envconfig:"MEMBERLIST_PORT" default:"7946"`
 }
 
 // Set up some signal handling for kill/term/int and try to exit the
@@ -65,8 +67,12 @@ func main() {
 
 	rubberneck.NewPrinter(log.Infof, rubberneck.NoAddLineFeed).Print(config)
 
+	mlConfig := memberlist.DefaultLANConfig()
+
+	mlConfig.BindPort = config.MemberlistPort
+	mlConfig.AdvertisePort = config.MemberlistPort
 	ring, err := ringman.NewMemberlistRing(
-		memberlist.DefaultLANConfig(),
+		mlConfig,
 		config.ClusterSeeds, config.Port, config.ClusterName,
 	)
 	if err != nil {
