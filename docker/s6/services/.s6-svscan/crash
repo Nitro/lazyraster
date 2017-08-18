@@ -1,0 +1,7 @@
+#!/bin/sh
+
+echo "Container crashed"
+
+echo "Trying to clean file cache first..."
+
+rm -rf /lazyraster/cache
