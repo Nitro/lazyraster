@@ -1,6 +1,8 @@
 Lazyraster
 ==========
 
+[![](https://travis-ci.org/Nitro/lazyraster.svg?branch=master)](https://travis-ci.org/Nitro/lazyraster)
+
 A caching PDF rasterizer that uses a filecache and a hashring to distribute load.
 
 MuPDF is the PDF engine that drives the rasterizer.
