@@ -32,6 +32,8 @@ variables. These include the following:
  * `RASTER_CLUSTER_SEEDS`: The seeds to use to start the gossip ring.
  * `RASTER_CACHE_SIZE`: The number of Rasterizer objects to cache at any one time.
  * `RASTER_REDIS_PORT`: The port on which to serve Redis protocol traffic.
+ * `RASTER_CLUSTER_NAME`: The name of the Memberlist cluster.
+ * `RASTER_MEMBERLIST_PORT`: The port used by Memberlist.
 
 In addition, the AWS APIs will require authorization in the form of the standard
 AWS environment variables:
