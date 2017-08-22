@@ -1,0 +1,49 @@
+language: go
+
+go:
+  - 1.8.x
+
+sudo: required
+
+services:
+  - docker
+
+before_install:
+  - sudo apt-get install -y libjpeg62 zlib1g libjbig2dec0 libjbig2dec0-dev libfreetype6 libpng12-0 ca-certificates
+  # Temporary hack until we adjunst lazypdf to pull in its dependencies during build
+  - go get github.com/Sirupsen/logrus && go get github.com/smartystreets/goconvey
+  - go get -d github.com/Nitro/lazypdf && (cd ${GOPATH}/src/github.com/Nitro/lazypdf && ./build)
+
+script:
+  - go test -v --timeout 30s ./... && go build
+  - if [ "$TRAVIS_BRANCH" == "master" ] && [ "${TRAVIS_GO_VERSION::3}" == "${PRODUCTION_GO_VERSION}" ]; then
+      echo "Building container gonitro/lazyraster:${TRAVIS_COMMIT::7}" &&
+      cp lazyraster docker/ &&
+      (cd docker && docker build -t lazyraster .) &&
+      docker tag lazyraster gonitro/lazyraster:${TRAVIS_COMMIT::7} &&
+      docker tag lazyraster gonitro/lazyraster:latest;
+    fi
+
+after_success:
+  - docker login -u="$DOCKER_USERNAME" -p="$DOCKER_PASSWORD"
+  - echo "Building on Go version ${TRAVIS_GO_VERSION} for branch ${TRAVIS_BRANCH}"
+  - if [ "$TRAVIS_BRANCH" == "master" ] && [ "${TRAVIS_GO_VERSION::3}" == "${PRODUCTION_GO_VERSION}" ]; then
+      echo "Pushing container gonitro/lazyraster:${TRAVIS_COMMIT::7}" &&
+      docker push gonitro/lazyraster:${TRAVIS_COMMIT::7};
+    fi
+  - if [ "$TRAVIS_BRANCH" == "master" ] && [ "${TRAVIS_GO_VERSION::3}" == "${PRODUCTION_GO_VERSION}" ] && [ -z "${NO_PUSH_LATEST}" ]; then
+      docker push gonitro/lazyraster:latest;
+    fi
+
+deploy:
+  provider: releases
+
+  api_key:
+    secure: nla4tVI/kWJjwStUMUqNjynR2aiFRp0sp+5ARq0nxx1ntvIc8rW4LUUdrEtniKRSW5r8LrSPhBlG+rBXvRTxvwtI5/gJhOQvrbzLEhkFdEizXOr32kpj7RS40FKHrh98j6RP/g+bMdpib6MF/hqe+8B/yawPwyJGkPD+ybkwqSayFS1ULewd0Tj57/5pQ34UVhc+oLX4xWUEAxTanmmPXw7V1w9rx8whXq4oN8DJB8sko39+trzaaUVMGgDTA5pF3Oy5eqAIh6bW7CxZqP7IGfj4+stPgBHM1F4q86sZIVXpORJ41qfkC9/EDo5ui6fScq0zQYPRHdrM6oFcaTY6iqoLxGzCrWSvZGatJHx8eSI/uiY2sKsL1QinG3qynHGYnknAYfWOFLsUb0Qaow91LYpqT74OohCiYnIxcn50wa5PBHDwNDxD8vKSqrgnszJTeh+UyH9gm1iVmWkKSN+n0nfLw9OOv4g23wV+EAvMnktrsKeQKO6U+7dAL3iXFZAJrBGG2CotwjHT1LHeo3eKUmzSioPl8+MKhWwRn7tXYyjd/2wkuiFjHoIIG/ao3GY3JprLu4XX2eDixh7q8zh9dt19MVcZg8oP/9C1p+U5vRiLYge8Nwa/pEAbn90grfsH81q6X8NZZLUl8CZo+J6BlGTRl+VEljKonFtYWv8OURQ=
+
+  file: lazyraster
+
+  on:
+    repo: Nitro/lazyraster
+    tags: true
+    condition: ${TRAVIS_GO_VERSION::3} == ${PRODUCTION_GO_VERSION}

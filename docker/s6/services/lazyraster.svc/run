@@ -1,0 +1,24 @@
+#!/bin/sh
+
+if [ -z "${RASTER_BASE_DIR}" ]; then
+    echo "Failed to start lazyraster: RASTER_BASE_DIR not set"
+    return 1
+fi
+
+echo "Trying to clear existing Lazyraster cached files (if any) in the background..."
+if [ -d "${RASTER_BASE_DIR}" ]; then
+	NOW=$(date +%s)
+	( \
+		# Delete old cached PDF files
+		find "${RASTER_BASE_DIR}" -mindepth 1 -type f -name "*.pdf" \! -newermt "@${NOW}" -delete && \
+		# Delete remaining empty subfolders, if any
+		# - deleting files changes the modification time of their parent folders, so we might
+		#   leave some empty folders behind that will be cleaned up next time this script runs...
+		# - when passing -delete to find, -depth is implicit which forces find to
+		#   process each directory's contents before the directory itself.
+		find "${RASTER_BASE_DIR}" -mindepth 1 -type d -empty \! -newermt "@${NOW}" -delete \
+	) &
+fi
+
+echo "Launching Lazyraster service..."
+/lazyraster/lazyraster
