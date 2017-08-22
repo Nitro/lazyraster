@@ -43,6 +43,8 @@ deploy:
 
   file: lazyraster
 
+  skip_cleanup: true
+
   on:
     repo: Nitro/lazyraster
     tags: true
