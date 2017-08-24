@@ -1,8 +1,7 @@
 #!/bin/sh
 
 # Add the current host as a Memberlist cluster seed when running under Mesos
-MESOS_ML_PORT_VAR="MESOS_PORT_${MEMBERLIST_PORT:-7946}"
-MESOS_ML_PORT="${!MESOS_ML_PORT_VAR}"
+MESOS_ML_PORT=$(env | grep "MESOS_PORT_${MEMBERLIST_PORT:-7946}" | cut -d "=" -f 2)
 export RASTER_CLUSTER_SEEDS="${MESOS_HOSTNAME:-127.0.0.1}:${MESOS_ML_PORT:-7946},${RASTER_CLUSTER_SEEDS}"
 
 if [ -z "${RASTER_BASE_DIR}" ]; then
