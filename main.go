@@ -17,16 +17,18 @@ import (
 
 // Config contains the application configuration parameters
 type Config struct {
-	BaseDir      string   `envconfig:"BASE_DIR" default:"."`
-	Port         string   `envconfig:"PORT" default:"8000"`
-	AwsRegion    string   `envconfig:"AWS_REGION" default:"us-west-1"`
-	S3Bucket     string   `envconfig:"S3_BUCKET" default:"nitro-junk"`
-	ClusterSeeds []string `envconfig:"CLUSTER_SEEDS" default:"127.0.0.1"`
-	CacheSize    int      `envconfig:"CACHE_SIZE" default:"512"`
-	RedisPort    int      `envconfig:"REDIS_PORT" default:"6379"`
-	ClusterName  string   `envconfig:"CLUSTER_NAME" default:"default"`
+	BaseDir                 string   `envconfig:"BASE_DIR" default:"."`
+	Port                    string   `envconfig:"PORT" default:"8000"`
+	AwsRegion               string   `envconfig:"AWS_REGION" default:"us-west-1"`
+	S3Bucket                string   `envconfig:"S3_BUCKET" default:"nitro-junk"`
+	ClusterSeeds            []string `envconfig:"CLUSTER_SEEDS" default:"127.0.0.1"`
+	CacheSize               int      `envconfig:"CACHE_SIZE" default:"512"`
+	RedisPort               int      `envconfig:"REDIS_PORT" default:"6379"`
+	ClusterName             string   `envconfig:"CLUSTER_NAME" default:"default"`
+	MemberlistAdvertiseAddr string   `envconfig:"MEMBERLIST_ADVERTISE_ADDRESS"`
+	MemberlistAdvertisePort string   `envconfig:"MEMBERLIST_ADVERTISE_PORT" default:"7946"`
 	// Change this to some other port when running on the same box as Sidecar
-	MemberlistPort int `envconfig:"MEMBERLIST_PORT" default:"7946"`
+	MemberlistBindPort int `envconfig:"MEMBERLIST_BIND_PORT" default:"7946"`
 }
 
 // Set up some signal handling for kill/term/int and try to exit the
@@ -69,8 +71,9 @@ func main() {
 
 	mlConfig := memberlist.DefaultLANConfig()
 
-	mlConfig.BindPort = config.MemberlistPort
-	mlConfig.AdvertisePort = config.MemberlistPort
+	mlConfig.BindPort = config.MemberlistBindPort
+	mlConfig.AdvertiseAddr = config.MemberlistAdvertiseAddr
+	mlConfig.AdvertisePort = config.MemberlistAdvertisePort
 	ring, err := ringman.NewMemberlistRing(
 		mlConfig,
 		config.ClusterSeeds, config.Port, config.ClusterName,
