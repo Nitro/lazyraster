@@ -26,7 +26,7 @@ type Config struct {
 	RedisPort               int      `envconfig:"REDIS_PORT" default:"6379"`
 	ClusterName             string   `envconfig:"CLUSTER_NAME" default:"default"`
 	MemberlistAdvertiseAddr string   `envconfig:"MEMBERLIST_ADVERTISE_ADDRESS"`
-	MemberlistAdvertisePort string   `envconfig:"MEMBERLIST_ADVERTISE_PORT" default:"7946"`
+	MemberlistAdvertisePort int      `envconfig:"MEMBERLIST_ADVERTISE_PORT" default:"7946"`
 	// Change this to some other port when running on the same box as Sidecar
 	MemberlistBindPort int `envconfig:"MEMBERLIST_BIND_PORT" default:"7946"`
 }
