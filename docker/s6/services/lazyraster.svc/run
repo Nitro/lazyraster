@@ -1,7 +1,10 @@
 #!/bin/sh
 
 export RASTER_MEMBERLIST_ADVERTISE_ADDRESS="${MESOS_HOSTNAME}"
-export RASTER_MEMBERLIST_ADVERTISE_PORT=$(env | grep "MESOS_PORT_${RASTER_MEMBERLIST_BIND_PORT:-7946}" | cut -d "=" -f 2)
+MAPPED_ML_BIND_PORT=$(env | grep "MESOS_PORT_${RASTER_MEMBERLIST_BIND_PORT:-7946}" | cut -d "=" -f 2)
+if [ -n "${MAPPED_ML_BIND_PORT}" ]; then
+    export RASTER_MEMBERLIST_ADVERTISE_PORT="${MAPPED_ML_BIND_PORT}"
+fi
 
 # Add the current host as a Memberlist cluster seed when running under Mesos
 export RASTER_CLUSTER_SEEDS="127.0.0.1:${RASTER_MEMBERLIST_BIND_PORT:-7946},${RASTER_CLUSTER_SEEDS}"
