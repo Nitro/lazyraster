@@ -1,20 +1,5 @@
 #!/bin/sh
 
-if [ -n "${MESOS_HOSTNAME}" ]; then
-	MESOS_HOSTNAME_IP=$(getent hosts ${MESOS_HOSTNAME} | cut -d' ' -f1)
-fi
-if [ -n "${MESOS_HOSTNAME_IP}" ]; then
-	export RASTER_MEMBERLIST_ADVERTISE_ADDRESS="${MESOS_HOSTNAME_IP}"
-fi
-
-MAPPED_ML_BIND_PORT=$(env | grep "MESOS_PORT_${RASTER_MEMBERLIST_BIND_PORT:-7946}" | cut -d "=" -f 2)
-if [ -n "${MAPPED_ML_BIND_PORT}" ]; then
-    export RASTER_MEMBERLIST_ADVERTISE_PORT="${MAPPED_ML_BIND_PORT}"
-fi
-
-# Add the current host as a Memberlist cluster seed when running under Mesos
-export RASTER_CLUSTER_SEEDS="127.0.0.1:${RASTER_MEMBERLIST_BIND_PORT:-7946},${RASTER_CLUSTER_SEEDS}"
-
 if [ -z "${RASTER_BASE_DIR}" ]; then
     echo "Failed to start lazyraster: RASTER_BASE_DIR not set"
     return 1

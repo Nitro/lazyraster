@@ -2,8 +2,10 @@ package main
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -21,7 +23,7 @@ type Config struct {
 	Port                    string   `envconfig:"PORT" default:"8000"`
 	AwsRegion               string   `envconfig:"AWS_REGION" default:"us-west-1"`
 	S3Bucket                string   `envconfig:"S3_BUCKET" default:"nitro-junk"`
-	ClusterSeeds            []string `envconfig:"CLUSTER_SEEDS" default:"127.0.0.1"`
+	ClusterSeeds            []string `envconfig:"CLUSTER_SEEDS"`
 	CacheSize               int      `envconfig:"CACHE_SIZE" default:"512"`
 	RedisPort               int      `envconfig:"REDIS_PORT" default:"6379"`
 	ClusterName             string   `envconfig:"CLUSTER_NAME" default:"default"`
@@ -29,6 +31,27 @@ type Config struct {
 	MemberlistAdvertisePort int      `envconfig:"MEMBERLIST_ADVERTISE_PORT" default:"7946"`
 	// Change this to some other port when running on the same box as Sidecar
 	MemberlistBindPort int `envconfig:"MEMBERLIST_BIND_PORT" default:"7946"`
+}
+
+func setMesosConfig(config *Config) {
+	// The Memberlist AdvertiseAddr requires an IP address
+	ipAddr, err := net.LookupIP(os.Getenv("MESOS_HOSTNAME"))
+	if err == nil {
+		// Use the first resolved IP and assume it's the one we want...
+		config.MemberlistAdvertiseAddr = ipAddr[0].String()
+	}
+
+	// Try to fetch the port mapped by Mesos for the Memberlist bind port
+	port, err := strconv.Atoi(os.Getenv("MESOS_PORT_" + strconv.Itoa(config.MemberlistBindPort)))
+	if err == nil {
+		config.MemberlistAdvertisePort = port
+	}
+}
+
+func addDefaultClusterSeed(config *Config) {
+	defaultClusterSeed := "127.0.0.1:" + strconv.Itoa(config.MemberlistBindPort)
+
+	config.ClusterSeeds = append(config.ClusterSeeds, defaultClusterSeed)
 }
 
 // Set up some signal handling for kill/term/int and try to exit the
@@ -66,6 +89,9 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to parse the configuration parameters: %s", err)
 	}
+
+	setMesosConfig(&config)
+	addDefaultClusterSeed(&config)
 
 	rubberneck.NewPrinter(log.Infof, rubberneck.NoAddLineFeed).Print(config)
 
