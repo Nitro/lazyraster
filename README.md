@@ -33,7 +33,7 @@ variables. These include the following:
  * `RASTER_CACHE_SIZE`: The number of Rasterizer objects to cache at any one time.
  * `RASTER_REDIS_PORT`: The port on which to serve Redis protocol traffic.
  * `RASTER_CLUSTER_NAME`: The name of the Memberlist cluster.
- * `RASTER_MEMBERLIST_ADVERTISE_ADDRESS`: The IP / hostname advertised by Memberlist.
+ * `MEMBERLIST_ADVERTISE_ADDR`: The IP / hostname advertised by Memberlist.
  * `RASTER_MEMBERLIST_ADVERTISE_PORT`: The port advertised by Memberlist.
  * `RASTER_MEMBERLIST_BIND_PORT`: The port which Memberlist binds to.
 
