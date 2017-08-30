@@ -95,7 +95,7 @@ func handleClearRasterCache(w http.ResponseWriter, r *http.Request,
 	defer r.Body.Close()
 
 	if !ring.Manager.IsRunning() {
-		http.Error(w, "Node is offline", 500)
+		http.Error(w, "Node is offline", 503)
 		return
 	}
 
@@ -136,7 +136,7 @@ func handleImage(w http.ResponseWriter, r *http.Request,
 
 	// Prevent the node from caching any new documents if it has been marked as offline
 	if !ring.Manager.IsRunning() && !cache.Contains(filename) {
-		http.Error(w, "Node is offline", 500)
+		http.Error(w, "Node is offline", 503)
 		return
 	}
 
@@ -221,7 +221,7 @@ func handleHealth(w http.ResponseWriter, r *http.Request,
 	w.Header().Set("Content-Type", "application/json")
 
 	if !ring.Manager.IsRunning() {
-		w.WriteHeader(500)
+		w.WriteHeader(503)
 		w.Write(data)
 		return
 	}
@@ -241,7 +241,7 @@ func handleShutdown(w http.ResponseWriter, r *http.Request,
 	defer shutdownMutex.Unlock()
 
 	if !ring.Manager.IsRunning() {
-		http.Error(w, "Node is offline", 500)
+		http.Error(w, "Node is offline", 503)
 		return
 	}
 
