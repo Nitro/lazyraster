@@ -33,19 +33,29 @@ type Config struct {
 	MemberlistBindPort int `envconfig:"MEMBERLIST_BIND_PORT" default:"7946"`
 }
 
-func setMesosConfig(config *Config) {
-	// The Memberlist AdvertiseAddr requires an IP address
-	ipAddr, err := net.LookupIP(os.Getenv("MESOS_HOSTNAME"))
-	if err == nil {
+func setMesosConfig(config *Config) error {
+	if hostname, ok := os.LookupEnv("MESOS_HOSTNAME"); ok {
+		// The Memberlist AdvertiseAddr requires an IP address
+		ipAddr, err := net.LookupIP(hostname)
+		if err != nil {
+			return fmt.Errorf("Failed to resolve the Mesos hostname '%s' IP: %s", hostname, err)
+		}
+
 		// Use the first resolved IP and assume it's the one we want...
 		config.MemberlistAdvertiseAddr = ipAddr[0].String()
 	}
 
 	// Try to fetch the port mapped by Mesos for the Memberlist bind port
-	port, err := strconv.Atoi(os.Getenv("MESOS_PORT_" + strconv.Itoa(config.MemberlistBindPort)))
-	if err == nil {
-		config.MemberlistAdvertisePort = port
+	if mesosPort, ok := os.LookupEnv("MESOS_PORT_" + strconv.Itoa(config.MemberlistBindPort)); ok {
+		p, err := strconv.Atoi(mesosPort)
+		if err != nil {
+			return fmt.Errorf("Failed to parse the Mesos mapped port for '%d': %s", config.MemberlistBindPort, err)
+		}
+
+		config.MemberlistAdvertisePort = p
 	}
+
+	return nil
 }
 
 func addDefaultClusterSeed(config *Config) {
@@ -90,7 +100,11 @@ func main() {
 		log.Fatalf("Failed to parse the configuration parameters: %s", err)
 	}
 
-	setMesosConfig(&config)
+	err = setMesosConfig(&config)
+	if err != nil {
+		log.Fatalf("Failed set the Mesos config: %s", err)
+	}
+
 	addDefaultClusterSeed(&config)
 
 	rubberneck.NewPrinter(log.Infof, rubberneck.NoAddLineFeed).Print(config)
