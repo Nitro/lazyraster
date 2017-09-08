@@ -2,8 +2,10 @@ package main
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -17,16 +19,49 @@ import (
 
 // Config contains the application configuration parameters
 type Config struct {
-	BaseDir      string   `envconfig:"BASE_DIR" default:"."`
-	Port         string   `envconfig:"PORT" default:"8000"`
-	AwsRegion    string   `envconfig:"AWS_REGION" default:"us-west-1"`
-	S3Bucket     string   `envconfig:"S3_BUCKET" default:"nitro-junk"`
-	ClusterSeeds []string `envconfig:"CLUSTER_SEEDS" default:"127.0.0.1"`
-	CacheSize    int      `envconfig:"CACHE_SIZE" default:"512"`
-	RedisPort    int      `envconfig:"REDIS_PORT" default:"6379"`
-	ClusterName  string   `envconfig:"CLUSTER_NAME" default:"default"`
+	BaseDir                 string   `envconfig:"BASE_DIR" default:"."`
+	Port                    string   `envconfig:"PORT" default:"8000"`
+	AwsRegion               string   `envconfig:"AWS_REGION" default:"us-west-1"`
+	S3Bucket                string   `envconfig:"S3_BUCKET" default:"nitro-junk"`
+	ClusterSeeds            []string `envconfig:"CLUSTER_SEEDS"`
+	CacheSize               int      `envconfig:"CACHE_SIZE" default:"512"`
+	RedisPort               int      `envconfig:"REDIS_PORT" default:"6379"`
+	ClusterName             string   `envconfig:"CLUSTER_NAME" default:"default"`
+	MemberlistAdvertiseAddr string   `envconfig:"MEMBERLIST_ADVERTISE_ADDR"`
+	MemberlistAdvertisePort int      `envconfig:"MEMBERLIST_ADVERTISE_PORT" default:"7946"`
 	// Change this to some other port when running on the same box as Sidecar
-	MemberlistPort int `envconfig:"MEMBERLIST_PORT" default:"7946"`
+	MemberlistBindPort int `envconfig:"MEMBERLIST_BIND_PORT" default:"7946"`
+}
+
+func configureMesos(config *Config) error {
+	if hostname, ok := os.LookupEnv("MESOS_HOSTNAME"); ok {
+		// The Memberlist AdvertiseAddr requires an IP address
+		ipAddr, err := net.LookupIP(hostname)
+		if err != nil {
+			return fmt.Errorf("Failed to resolve the Mesos hostname '%s' IP: %s", hostname, err)
+		}
+
+		// Use the first resolved IP and assume it's the one we want...
+		config.MemberlistAdvertiseAddr = ipAddr[0].String()
+	}
+
+	// Try to fetch the port mapped by Mesos for the Memberlist bind port
+	if mesosPort, ok := os.LookupEnv("MESOS_PORT_" + strconv.Itoa(config.MemberlistBindPort)); ok {
+		p, err := strconv.Atoi(mesosPort)
+		if err != nil {
+			return fmt.Errorf("Failed to parse the Mesos mapped port for '%d': %s", config.MemberlistBindPort, err)
+		}
+
+		config.MemberlistAdvertisePort = p
+	}
+
+	return nil
+}
+
+func configureDefaultClusterSeed(config *Config) {
+	defaultClusterSeed := "127.0.0.1:" + strconv.Itoa(config.MemberlistBindPort)
+
+	config.ClusterSeeds = append(config.ClusterSeeds, defaultClusterSeed)
 }
 
 // Set up some signal handling for kill/term/int and try to exit the
@@ -65,12 +100,20 @@ func main() {
 		log.Fatalf("Failed to parse the configuration parameters: %s", err)
 	}
 
+	err = configureMesos(&config)
+	if err != nil {
+		log.Fatalf("Failed set the Mesos config: %s", err)
+	}
+
+	configureDefaultClusterSeed(&config)
+
 	rubberneck.NewPrinter(log.Infof, rubberneck.NoAddLineFeed).Print(config)
 
 	mlConfig := memberlist.DefaultLANConfig()
 
-	mlConfig.BindPort = config.MemberlistPort
-	mlConfig.AdvertisePort = config.MemberlistPort
+	mlConfig.BindPort = config.MemberlistBindPort
+	mlConfig.AdvertiseAddr = config.MemberlistAdvertiseAddr
+	mlConfig.AdvertisePort = config.MemberlistAdvertisePort
 	ring, err := ringman.NewMemberlistRing(
 		mlConfig,
 		config.ClusterSeeds, config.Port, config.ClusterName,
