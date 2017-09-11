@@ -17,7 +17,7 @@ import (
 	"github.com/Nitro/filecache"
 	"github.com/Nitro/lazypdf"
 	"github.com/Nitro/ringman"
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	"github.com/gorilla/handlers"
 )
 
