@@ -16,7 +16,19 @@ This requires some C library dependencies that are not vendored in this
 project. Install it in the correct location in your `GOPATH` so that it
 can be found in the correct location when building this project.
 
-Once that is installed, this project builds with a simple `go build`.
+Once that is installed, if you have not already, you will need to install
+all of the dependencies in `vendor/`. This project uses the `dep` tool to manage
+dependencies. You must have that installed:
+```
+go get github.com/golang/dep/cmd/dep
+```
+
+Installing the dependencies is:
+```
+dep ensure
+```
+
+You can then build this project builds with a simple `go build`.
 
 Running It
 ----------
