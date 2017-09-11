@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/Nitro/ringman"
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	"github.com/bsm/redeo"
 )
 

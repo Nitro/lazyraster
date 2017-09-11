@@ -12,7 +12,7 @@ import (
 	"github.com/Nitro/filecache"
 	"github.com/Nitro/memberlist"
 	"github.com/Nitro/ringman"
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	"github.com/kelseyhightower/envconfig"
 	"github.com/relistan/rubberneck"
 )
