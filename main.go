@@ -12,15 +12,16 @@ import (
 	"github.com/Nitro/filecache"
 	"github.com/Nitro/memberlist"
 	"github.com/Nitro/ringman"
-	log "github.com/sirupsen/logrus"
 	"github.com/kelseyhightower/envconfig"
 	"github.com/relistan/rubberneck"
+	log "github.com/sirupsen/logrus"
 )
 
 // Config contains the application configuration parameters
 type Config struct {
 	BaseDir                 string   `envconfig:"BASE_DIR" default:"."`
-	Port                    string   `envconfig:"PORT" default:"8000"`
+	Port                    int      `envconfig:"PORT" default:"8000"`
+	AdvertisePort           int      `envconfig:"ADVERTISE_PORT" default:"8000"`
 	AwsRegion               string   `envconfig:"AWS_REGION" default:"us-west-1"`
 	S3Bucket                string   `envconfig:"S3_BUCKET" default:"nitro-junk"`
 	ClusterSeeds            []string `envconfig:"CLUSTER_SEEDS"`
@@ -31,6 +32,20 @@ type Config struct {
 	MemberlistAdvertisePort int      `envconfig:"MEMBERLIST_ADVERTISE_PORT" default:"7946"`
 	// Change this to some other port when running on the same box as Sidecar
 	MemberlistBindPort int `envconfig:"MEMBERLIST_BIND_PORT" default:"7946"`
+}
+
+func fetchMesosMappedPort(port int) (int, error) {
+	if mesosPort, ok := os.LookupEnv("MESOS_PORT_" + strconv.Itoa(port)); ok {
+		p, err := strconv.Atoi(mesosPort)
+		if err != nil {
+			return 0, fmt.Errorf("failed to parse the Mesos mapped port for '%d': %s", port, err)
+		}
+
+		return p, nil
+	}
+
+	// If we can't find a corresponding Mesos variable, return the input port
+	return port, nil
 }
 
 func configureMesos(config *Config) error {
@@ -45,14 +60,18 @@ func configureMesos(config *Config) error {
 		config.MemberlistAdvertiseAddr = ipAddr[0].String()
 	}
 
-	// Try to fetch the port mapped by Mesos for the Memberlist bind port
-	if mesosPort, ok := os.LookupEnv("MESOS_PORT_" + strconv.Itoa(config.MemberlistBindPort)); ok {
-		p, err := strconv.Atoi(mesosPort)
-		if err != nil {
-			return fmt.Errorf("Failed to parse the Mesos mapped port for '%d': %s", config.MemberlistBindPort, err)
-		}
+	// Try to fetch the port mapped by Mesos for the Lazyraster HTTP bind port
+	// This port will be stored Memberlist
+	var err error
+	config.AdvertisePort, err = fetchMesosMappedPort(config.Port)
+	if err != nil {
+		return err
+	}
 
-		config.MemberlistAdvertisePort = p
+	// Try to fetch the port mapped by Mesos for the Memberlist bind port
+	config.MemberlistAdvertisePort, err = fetchMesosMappedPort(config.MemberlistBindPort)
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -116,7 +135,7 @@ func main() {
 	mlConfig.AdvertisePort = config.MemberlistAdvertisePort
 	ring, err := ringman.NewMemberlistRing(
 		mlConfig,
-		config.ClusterSeeds, config.Port, config.ClusterName,
+		config.ClusterSeeds, strconv.Itoa(config.AdvertisePort), config.ClusterName,
 	)
 	if err != nil {
 		log.Fatalf("Unable to establish memberlist ring: %s", err)

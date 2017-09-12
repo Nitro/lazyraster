@@ -17,8 +17,8 @@ import (
 	"github.com/Nitro/filecache"
 	"github.com/Nitro/lazypdf"
 	"github.com/Nitro/ringman"
-	log "github.com/sirupsen/logrus"
 	"github.com/gorilla/handlers"
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -263,7 +263,7 @@ func serveHttp(config *Config, cache *filecache.FileCache, ring *ringman.Memberl
 	http.HandleFunc("/shutdown", makeHandler(handleShutdown, cache, rasterCache, ring))
 	http.HandleFunc("/", makeHandler(handleImage, cache, rasterCache, ring))
 	err := http.ListenAndServe(
-		fmt.Sprintf(":%s", config.Port), handlers.LoggingHandler(os.Stdout, http.DefaultServeMux),
+		fmt.Sprintf(":%d", config.Port), handlers.LoggingHandler(os.Stdout, http.DefaultServeMux),
 	)
 
 	if err != nil {
