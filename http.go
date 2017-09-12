@@ -263,7 +263,7 @@ func serveHttp(config *Config, cache *filecache.FileCache, ring *ringman.Memberl
 	http.HandleFunc("/shutdown", makeHandler(handleShutdown, cache, rasterCache, ring))
 	http.HandleFunc("/", makeHandler(handleImage, cache, rasterCache, ring))
 	err := http.ListenAndServe(
-		fmt.Sprintf(":%d", config.Port), handlers.LoggingHandler(os.Stdout, http.DefaultServeMux),
+		fmt.Sprintf(":%d", config.HttpPort), handlers.LoggingHandler(os.Stdout, http.DefaultServeMux),
 	)
 
 	if err != nil {

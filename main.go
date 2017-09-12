@@ -17,24 +17,24 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+const MemberlistBindPort = 7946
+
 // Config contains the application configuration parameters
 type Config struct {
 	BaseDir                 string   `envconfig:"BASE_DIR" default:"."`
-	Port                    int      `envconfig:"PORT" default:"8000"`
-	AdvertisePort           int      `envconfig:"ADVERTISE_PORT" default:"8000"`
+	HttpPort                int      `envconfig:"HTTP_PORT" default:"8000"`
+	AdvertiseHttpPort       int      `envconfig:"ADVERTISE_HTTP_PORT" default:"8000"`
 	AwsRegion               string   `envconfig:"AWS_REGION" default:"us-west-1"`
 	S3Bucket                string   `envconfig:"S3_BUCKET" default:"nitro-junk"`
 	ClusterSeeds            []string `envconfig:"CLUSTER_SEEDS"`
 	CacheSize               int      `envconfig:"CACHE_SIZE" default:"512"`
 	RedisPort               int      `envconfig:"REDIS_PORT" default:"6379"`
 	ClusterName             string   `envconfig:"CLUSTER_NAME" default:"default"`
-	MemberlistAdvertiseAddr string   `envconfig:"MEMBERLIST_ADVERTISE_ADDR"`
-	MemberlistAdvertisePort int      `envconfig:"MEMBERLIST_ADVERTISE_PORT" default:"7946"`
-	// Change this to some other port when running on the same box as Sidecar
-	MemberlistBindPort int `envconfig:"MEMBERLIST_BIND_PORT" default:"7946"`
+	AdvertiseMemberlistHost string   `envconfig:"ADVERTISE_MEMBERLIST_HOST"`
+	AdvertiseMemberlistPort int      `envconfig:"ADVERTISE_MEMBERLIST_PORT" default:"7946"`
 }
 
-func fetchMesosMappedPort(port int) (int, error) {
+func findMesosOverrideFor(port int, defaultPort int) (int, error) {
 	if mesosPort, ok := os.LookupEnv("MESOS_PORT_" + strconv.Itoa(port)); ok {
 		p, err := strconv.Atoi(mesosPort)
 		if err != nil {
@@ -45,10 +45,10 @@ func fetchMesosMappedPort(port int) (int, error) {
 	}
 
 	// If we can't find a corresponding Mesos variable, return the input port
-	return port, nil
+	return defaultPort, nil
 }
 
-func configureMesos(config *Config) error {
+func configureMesosMappings(config *Config) error {
 	if hostname, ok := os.LookupEnv("MESOS_HOSTNAME"); ok {
 		// The Memberlist AdvertiseAddr requires an IP address
 		ipAddr, err := net.LookupIP(hostname)
@@ -57,19 +57,21 @@ func configureMesos(config *Config) error {
 		}
 
 		// Use the first resolved IP and assume it's the one we want...
-		config.MemberlistAdvertiseAddr = ipAddr[0].String()
+		config.AdvertiseMemberlistHost = ipAddr[0].String()
 	}
 
 	// Try to fetch the port mapped by Mesos for the Lazyraster HTTP bind port
 	// This port will be stored Memberlist
 	var err error
-	config.AdvertisePort, err = fetchMesosMappedPort(config.Port)
+	config.AdvertiseHttpPort, err =
+		findMesosOverrideFor(config.HttpPort, config.AdvertiseHttpPort)
 	if err != nil {
 		return err
 	}
 
 	// Try to fetch the port mapped by Mesos for the Memberlist bind port
-	config.MemberlistAdvertisePort, err = fetchMesosMappedPort(config.MemberlistBindPort)
+	config.AdvertiseMemberlistPort, err =
+		findMesosOverrideFor(MemberlistBindPort, config.AdvertiseMemberlistPort)
 	if err != nil {
 		return err
 	}
@@ -78,7 +80,7 @@ func configureMesos(config *Config) error {
 }
 
 func configureDefaultClusterSeed(config *Config) {
-	defaultClusterSeed := "127.0.0.1:" + strconv.Itoa(config.MemberlistBindPort)
+	defaultClusterSeed := "127.0.0.1:" + strconv.Itoa(MemberlistBindPort)
 
 	config.ClusterSeeds = append(config.ClusterSeeds, defaultClusterSeed)
 }
@@ -119,7 +121,7 @@ func main() {
 		log.Fatalf("Failed to parse the configuration parameters: %s", err)
 	}
 
-	err = configureMesos(&config)
+	err = configureMesosMappings(&config)
 	if err != nil {
 		log.Fatalf("Failed set the Mesos config: %s", err)
 	}
@@ -130,12 +132,12 @@ func main() {
 
 	mlConfig := memberlist.DefaultLANConfig()
 
-	mlConfig.BindPort = config.MemberlistBindPort
-	mlConfig.AdvertiseAddr = config.MemberlistAdvertiseAddr
-	mlConfig.AdvertisePort = config.MemberlistAdvertisePort
+	mlConfig.BindPort = MemberlistBindPort
+	mlConfig.AdvertiseAddr = config.AdvertiseMemberlistHost
+	mlConfig.AdvertisePort = config.AdvertiseMemberlistPort
 	ring, err := ringman.NewMemberlistRing(
 		mlConfig,
-		config.ClusterSeeds, strconv.Itoa(config.AdvertisePort), config.ClusterName,
+		config.ClusterSeeds, strconv.Itoa(config.AdvertiseHttpPort), config.ClusterName,
 	)
 	if err != nil {
 		log.Fatalf("Unable to establish memberlist ring: %s", err)
