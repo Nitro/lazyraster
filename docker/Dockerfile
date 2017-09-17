@@ -20,6 +20,6 @@ ADD lazyraster /lazyraster/lazyraster
 ENV RASTER_BASE_DIR="/lazyraster/cache"
 
 # Expose ports for Redis, Memberlist and Raster
-EXPOSE 6379 7946 8000
+EXPOSE 6379 7946/tcp 7946/udp 8000
 
 CMD ["/bin/s6-svscan", "/etc/services"]
