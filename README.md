@@ -38,16 +38,16 @@ located in the current directory. Configuration is done using environment
 variables. These include the following:
 
  * `RASTER_BASE_DIR`: The location where cached files are to be stored and served.
- * `RASTER_PORT`: The port to listen on for HTTP connections.
+ * `RASTER_HTTP_PORT`: The port to listen on for HTTP connections.
+ * `RASTER_ADVERTISE_HTTP_PORT`: The advertised host port which gets mapped to RASTER_HTTP_PORT.
  * `RASTER_AWS_REGION`: The AWS Region to use when serving from an S3 bucket.
  * `RASTER_S3_BUCKET`: The backing S3 bucket to use for fetching files.
  * `RASTER_CLUSTER_SEEDS`: The seeds to use to start the gossip ring.
  * `RASTER_CACHE_SIZE`: The number of Rasterizer objects to cache at any one time.
  * `RASTER_REDIS_PORT`: The port on which to serve Redis protocol traffic.
  * `RASTER_CLUSTER_NAME`: The name of the Memberlist cluster.
- * `MEMBERLIST_ADVERTISE_ADDR`: The IP / hostname advertised by Memberlist.
- * `RASTER_MEMBERLIST_ADVERTISE_PORT`: The port advertised by Memberlist.
- * `RASTER_MEMBERLIST_BIND_PORT`: The port which Memberlist binds to.
+ * `RASTER_ADVERTISE_MEMBERLIST_HOST`: The IP / hostname advertised by Memberlist.
+ * `RASTER_ADVERTISE_MEMBERLIST_PORT`: The port advertised by Memberlist.
 
 In addition, the AWS APIs will require authorization in the form of the standard
 AWS environment variables:
