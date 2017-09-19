@@ -19,6 +19,7 @@ import (
 	"github.com/Nitro/ringman"
 	"github.com/gorilla/handlers"
 	log "github.com/sirupsen/logrus"
+	"github.com/yvasiyarov/gorelic"
 )
 
 const (
@@ -30,6 +31,8 @@ var (
 	sanitizer     *regexp.Regexp = regexp.MustCompile(`(^\/|^/|(^\./)+|^(\.\.)+|^(\.)+)`)
 	shutdownMutex sync.Mutex
 )
+
+type ourHttpHandlerFunc func(http.ResponseWriter, *http.Request, *filecache.FileCache, *RasterCache, *ringman.MemberlistRing, *gorelic.Agent)
 
 func imageQualityForRequest(r *http.Request) int {
 	imageQuality := 100
@@ -81,16 +84,17 @@ func widthForRequest(r *http.Request) (int64, error) {
 	return width, nil
 }
 
-func makeHandler(wrapped func(http.ResponseWriter, *http.Request, *filecache.FileCache, *RasterCache, *ringman.MemberlistRing),
-	cache *filecache.FileCache, rasterCache *RasterCache, ring *ringman.MemberlistRing) http.HandlerFunc {
+func makeHandler(wrapped ourHttpHandlerFunc, cache *filecache.FileCache,
+	rasterCache *RasterCache, ring *ringman.MemberlistRing, agent *gorelic.Agent) func(http.ResponseWriter, *http.Request) {
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		wrapped(w, r, cache, rasterCache, ring)
+		wrapped(w, r, cache, rasterCache, ring, agent)
 	}
 }
 
+// Allows us to manually clear out the raster cache
 func handleClearRasterCache(w http.ResponseWriter, r *http.Request,
-	cache *filecache.FileCache, rasterCache *RasterCache, ring *ringman.MemberlistRing) {
+	cache *filecache.FileCache, rasterCache *RasterCache, ring *ringman.MemberlistRing, agent *gorelic.Agent) {
 
 	defer r.Body.Close()
 
@@ -107,11 +111,14 @@ func handleClearRasterCache(w http.ResponseWriter, r *http.Request,
 
 // handleImage is an HTTP handler that responds to requests for pages
 func handleImage(w http.ResponseWriter, r *http.Request,
-	cache *filecache.FileCache, rasterCache *RasterCache, ring *ringman.MemberlistRing) {
+	cache *filecache.FileCache, rasterCache *RasterCache, ring *ringman.MemberlistRing, agent *gorelic.Agent) {
 
+	// Log some debug timing and send to New Relic
 	defer func(startTime time.Time) {
 		log.Debugf("Total request time: %s", time.Since(startTime))
 	}(time.Now())
+	t := agent.Tracer.BeginTrace("handleImage")
+	defer t.EndTrace()
 
 	defer r.Body.Close()
 
@@ -152,6 +159,8 @@ func handleImage(w http.ResponseWriter, r *http.Request,
 	defer func(startTime time.Time) {
 		log.Debugf("Raster time %s for %s page %d", time.Since(startTime), r.URL.Path, page)
 	}(time.Now())
+	t2 := agent.Tracer.BeginTrace("rasterize")
+	defer t2.EndTrace()
 
 	// Get ahold of a rasterizer for this document, either from the cache,
 	// or newly constructed by the cache.
@@ -193,7 +202,7 @@ func handleImage(w http.ResponseWriter, r *http.Request,
 
 // Health route for the service
 func handleHealth(w http.ResponseWriter, r *http.Request,
-	cache *filecache.FileCache, rasterCache *RasterCache, ring *ringman.MemberlistRing) {
+	cache *filecache.FileCache, rasterCache *RasterCache, ring *ringman.MemberlistRing, agent *gorelic.Agent) {
 
 	defer r.Body.Close()
 
@@ -231,7 +240,7 @@ func handleHealth(w http.ResponseWriter, r *http.Request,
 
 // handleShutdown creates an HTTP handler for triggering a soft shutdown
 func handleShutdown(w http.ResponseWriter, r *http.Request,
-	cache *filecache.FileCache, _ *RasterCache, ring *ringman.MemberlistRing) {
+	cache *filecache.FileCache, _ *RasterCache, ring *ringman.MemberlistRing, agent *gorelic.Agent) {
 
 	defer r.Body.Close()
 
@@ -255,13 +264,26 @@ func handleShutdown(w http.ResponseWriter, r *http.Request,
 
 }
 
-func serveHttp(config *Config, cache *filecache.FileCache, ring *ringman.MemberlistRing, rasterCache *RasterCache) error {
-	http.HandleFunc("/favicon.ico", http.NotFound)
+func serveHttp(config *Config, cache *filecache.FileCache, ring *ringman.MemberlistRing, rasterCache *RasterCache, agent *gorelic.Agent) error {
+	// Simple wrapper to make definitions simpler to read/understand
+	handle := func(f ourHttpHandlerFunc) func(http.ResponseWriter, *http.Request) {
+		if agent != nil {
+			return agent.WrapHTTPHandlerFunc(makeHandler(f, cache, rasterCache, ring, agent))
+		} else {
+			return makeHandler(f, cache, rasterCache, ring, agent)
+		}
+	}
+
+	// ------------------------------------------------------------------------
+	// Route definitions
+	// ------------------------------------------------------------------------
+	http.HandleFunc("/favicon.ico", http.NotFound) // Browsers look for this
 	http.Handle("/hashring/", http.StripPrefix("/hashring", ring.HttpMux()))
-	http.HandleFunc("/health", makeHandler(handleHealth, cache, rasterCache, ring))
-	http.HandleFunc("/rastercache/purge", makeHandler(handleClearRasterCache, cache, rasterCache, ring))
-	http.HandleFunc("/shutdown", makeHandler(handleShutdown, cache, rasterCache, ring))
-	http.HandleFunc("/", makeHandler(handleImage, cache, rasterCache, ring))
+	http.HandleFunc("/health", handle(handleHealth))
+	http.HandleFunc("/rastercache/purge", handle(handleClearRasterCache))
+	http.HandleFunc("/shutdown", handle(handleShutdown))
+	http.HandleFunc("/", handle(handleImage))
+	// ------------------------------------------------------------------------
 	err := http.ListenAndServe(
 		fmt.Sprintf(":%d", config.HttpPort), handlers.LoggingHandler(os.Stdout, http.DefaultServeMux),
 	)

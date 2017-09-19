@@ -15,6 +15,7 @@ import (
 	"github.com/kelseyhightower/envconfig"
 	"github.com/relistan/rubberneck"
 	log "github.com/sirupsen/logrus"
+	"github.com/yvasiyarov/gorelic"
 )
 
 const MemberlistBindPort = 7946
@@ -111,6 +112,28 @@ func handleSignals(fCache *filecache.FileCache, mList *memberlist.Memberlist) {
 	os.Exit(130)                // Ctrl-C received or equivalent
 }
 
+// configureNewRelic sets up and starts a Gorelic agent if we have a
+// New Relic license available.
+func configureNewRelic() *gorelic.Agent {
+	nrLicense := os.Getenv("NEW_RELIC_LICENSE_KEY")
+	var agent *gorelic.Agent
+	if nrLicense == "" {
+		log.Info("No New Relic license found, not starting an agent")
+	} else {
+		agent := gorelic.NewAgent()
+		svcName := os.Getenv("SERVICE_NAME")
+		envName := os.Getenv("ENVIRONMENT_NAME")
+		if svcName != "" && envName != "" {
+			agent.NewrelicName = fmt.Sprintf("%s-%s", svcName, envName)
+		}
+		agent.Verbose = true
+		agent.NewrelicLicense = nrLicense
+		agent.Run()
+	}
+
+	return agent
+}
+
 func main() {
 	log.SetLevel(log.DebugLevel)
 
@@ -129,6 +152,9 @@ func main() {
 	configureDefaultClusterSeed(&config)
 
 	rubberneck.NewPrinter(log.Infof, rubberneck.NoAddLineFeed).Print(config)
+
+	// New Relic
+	agent := configureNewRelic()
 
 	mlConfig := memberlist.DefaultLANConfig()
 
@@ -164,13 +190,13 @@ func main() {
 
 	// Run the Redis protocol server and wire it up to our hash ring
 	go func() {
-		err := serveRedis(fmt.Sprintf(":%d", config.RedisPort), ring.Manager)
+		err := serveRedis(fmt.Sprintf(":%d", config.RedisPort), ring.Manager, agent)
 		if err != nil {
 			log.Fatalf("Error starting Redis protocol server: %s", err)
 		}
 	}()
 
-	err = serveHttp(&config, fCache, ring, rasterCache)
+	err = serveHttp(&config, fCache, ring, rasterCache, agent)
 	if err != nil {
 		panic(err.Error())
 	}
