@@ -119,17 +119,19 @@ func configureNewRelic() *gorelic.Agent {
 	var agent *gorelic.Agent
 	if nrLicense == "" {
 		log.Info("No New Relic license found, not starting an agent")
-	} else {
-		agent := gorelic.NewAgent()
-		svcName := os.Getenv("SERVICE_NAME")
-		envName := os.Getenv("ENVIRONMENT_NAME")
-		if svcName != "" && envName != "" {
-			agent.NewrelicName = fmt.Sprintf("%s-%s", svcName, envName)
-		}
-		agent.Verbose = true
-		agent.NewrelicLicense = nrLicense
-		agent.Run()
+
+		return nil
 	}
+
+	agent := gorelic.NewAgent()
+	svcName := os.Getenv("SERVICE_NAME")
+	envName := os.Getenv("ENVIRONMENT_NAME")
+	if svcName != "" && envName != "" {
+		agent.NewrelicName = fmt.Sprintf("%s-%s", svcName, envName)
+	}
+	agent.Verbose = true
+	agent.NewrelicLicense = nrLicense
+	agent.Run()
 
 	return agent
 }
