@@ -159,6 +159,24 @@
 
 [[projects]]
   branch = "master"
+  name = "github.com/yvasiyarov/go-metrics"
+  packages = ["."]
+  revision = "c25f46c4b94079672242ec48a545e7ca9ebe3aec"
+
+[[projects]]
+  name = "github.com/yvasiyarov/gorelic"
+  packages = ["."]
+  revision = "4dc1bb7ab951bc884feb2c009092b1a454152355"
+  version = "v0.0.6"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/yvasiyarov/newrelic_platform_go"
+  packages = ["."]
+  revision = "9c099fbc30e90de5bb5c5f94aa5fd08f2daeaacd"
+
+[[projects]]
+  branch = "master"
   name = "golang.org/x/crypto"
   packages = ["ssh/terminal"]
   revision = "9ba3862cf6a5452ae579de98f9364dd2e544844c"
@@ -172,6 +190,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "86f89d5c6a2a8159316c1ef832756051d0c75c78baa80603d1e05fd89ff1d403"
+  inputs-digest = "b955fb4415c190c686ca6eb2ee661b1c824f1b8b085e40d42b55d0c7165132e1"
   solver-name = "gps-cdcl"
   solver-version = 1
