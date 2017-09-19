@@ -6,8 +6,9 @@ import (
 	"time"
 
 	"github.com/Nitro/ringman"
-	log "github.com/sirupsen/logrus"
 	"github.com/bsm/redeo"
+	log "github.com/sirupsen/logrus"
+	"github.com/yvasiyarov/gorelic"
 )
 
 func measureSince(label string, startTime time.Time) {
@@ -15,7 +16,7 @@ func measureSince(label string, startTime time.Time) {
 }
 
 // serveRedis runs the Redis protocol server
-func serveRedis(addr string, ringman *ringman.HashRingManager) error {
+func serveRedis(addr string, ringman *ringman.HashRingManager, agent *gorelic.Agent) error {
 	if !strings.Contains(addr, ":") {
 		return errors.New("serveRedis(): Invalid address supplied. Must be of form 'addr:port' or ':port'")
 	}
@@ -39,12 +40,22 @@ func serveRedis(addr string, ringman *ringman.HashRingManager) error {
 	srv.HandleFunc("select", func(out *redeo.Responder, _ *redeo.Request) error {
 		defer measureSince("select", time.Now().UTC())
 
+		if agent != nil {
+			t := agent.Tracer.BeginTrace("redisSelect")
+			defer t.EndTrace()
+		}
+
 		out.WriteOK()
 		return nil
 	})
 
 	srv.HandleFunc("get", func(out *redeo.Responder, req *redeo.Request) error {
 		defer measureSince("get", time.Now())
+
+		if agent != nil {
+			t := agent.Tracer.BeginTrace("redisGet")
+			defer t.EndTrace()
+		}
 
 		if len(req.Args) != 1 {
 			return req.WrongNumberOfArgs()

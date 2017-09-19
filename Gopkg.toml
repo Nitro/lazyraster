@@ -55,3 +55,7 @@ ignored = ["github.com/Nitro/lazypdf"]
 [[constraint]]
   name = "github.com/smartystreets/goconvey"
   version = ">=1.6.2, <=17.0.0-g3bd662e"
+
+[[constraint]]
+  name = "github.com/yvasiyarov/gorelic"
+  revision = "ae09aa139a2b7f638e2412baceaceebd41eff115"

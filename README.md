@@ -55,6 +55,18 @@ AWS environment variables:
  * `AWS_ACCESS_KEY_ID`
  * `AWS_SECRET_ACCESS_KEY`
 
+If you are a New Relic customer and wish to monitor this using New Relic's
+service, the service includes the
+[Gorelic](https://github.com/yvasiyarov/gorelic) platform agent.  This is
+currently used in place of the New Relic go agent due to [major licensing
+issues](https://github.com/newrelic/go-agent/issues/45) with the current Go
+agent. You may trigger the use of the New Relic agent by starting the service
+with:
+
+ * `NEW_RELIC_LICENSE_KEY`: the value is your current license key.
+ * `SERVICE_NAME`: the name of the application in New Relic (e.g. 'foo-service')
+ * `ENVIRONMENT_NAME`: appended to `SERVICE_NAME` (e.g. 'foo-service-prod')
+
 Copyright
 ---------
 
