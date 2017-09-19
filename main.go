@@ -123,7 +123,7 @@ func configureNewRelic() *gorelic.Agent {
 		return nil
 	}
 
-	agent := gorelic.NewAgent()
+	agent = gorelic.NewAgent()
 	svcName := os.Getenv("SERVICE_NAME")
 	envName := os.Getenv("ENVIRONMENT_NAME")
 	if svcName != "" && envName != "" {
