@@ -140,12 +140,18 @@ func configureNewRelic() *gorelic.Agent {
 		return nil
 	}
 
+	log.Infof("Configuring New Relic agent (Gorelic) with license '%s'", nrLicense)
+
 	agent = gorelic.NewAgent()
 	svcName := os.Getenv("SERVICE_NAME")
 	envName := os.Getenv("ENVIRONMENT_NAME")
 	if svcName != "" && envName != "" {
-		agent.NewrelicName = fmt.Sprintf("%s-%s", svcName, envName)
+		nrName := fmt.Sprintf("%s-%s", svcName, envName)
+		log.Infof("Registering with New Relic app name: %s", nrName)
+		agent.NewrelicName = nrName
 	}
+	agent.CollectHTTPStatuses = true
+	agent.CollectHTTPStat = true
 	agent.NewrelicLicense = nrLicense
 	agent.Run()
 

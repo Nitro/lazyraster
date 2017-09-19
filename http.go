@@ -32,8 +32,6 @@ var (
 	shutdownMutex sync.Mutex
 )
 
-type ourHttpHandlerFunc func(http.ResponseWriter, *http.Request, *filecache.FileCache, *RasterCache, *ringman.MemberlistRing, *gorelic.Agent)
-
 func imageQualityForRequest(r *http.Request) int {
 	imageQuality := 100
 	if r.FormValue("quality") != "" {
@@ -84,41 +82,55 @@ func widthForRequest(r *http.Request) (int64, error) {
 	return width, nil
 }
 
-func makeHandler(wrapped ourHttpHandlerFunc, cache *filecache.FileCache,
-	rasterCache *RasterCache, ring *ringman.MemberlistRing, agent *gorelic.Agent) func(http.ResponseWriter, *http.Request) {
+type RasterHttpServer struct {
+	cache       *filecache.FileCache
+	rasterCache *RasterCache
+	ring        *ringman.MemberlistRing
+	agent       *gorelic.Agent
+}
 
-	return func(w http.ResponseWriter, r *http.Request) {
-		wrapped(w, r, cache, rasterCache, ring, agent)
+// beginTrace is a safe wrapper around the New Relic agent tracer
+func (h *RasterHttpServer) beginTrace(name string) *gorelic.Trace {
+	if h.agent != nil {
+		t := h.agent.Tracer.BeginTrace(name)
+		return t
+	}
+
+	return nil
+}
+
+// endTrace is a safe wrapper around the New Relic agent tracer
+func (h *RasterHttpServer) endTrace(t *gorelic.Trace) {
+	if h.agent != nil {
+		t.EndTrace()
 	}
 }
 
 // Allows us to manually clear out the raster cache
-func handleClearRasterCache(w http.ResponseWriter, r *http.Request,
-	cache *filecache.FileCache, rasterCache *RasterCache, ring *ringman.MemberlistRing, agent *gorelic.Agent) {
-
+func (h *RasterHttpServer) handleClearRasterCache(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
-	if !ring.Manager.Ping() {
+	if !h.ring.Manager.Ping() {
 		http.Error(w, "Node is offline", 503)
 		return
 	}
 
-	rasterCache.Purge()
+	h.rasterCache.Purge()
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Write([]byte(`{"status": "OK"}`))
 }
 
 // handleImage is an HTTP handler that responds to requests for pages
-func handleImage(w http.ResponseWriter, r *http.Request,
-	cache *filecache.FileCache, rasterCache *RasterCache, ring *ringman.MemberlistRing, agent *gorelic.Agent) {
+func (h *RasterHttpServer) handleImage(w http.ResponseWriter, r *http.Request) {
 
 	// Log some debug timing and send to New Relic
 	defer func(startTime time.Time) {
 		log.Debugf("Total request time: %s", time.Since(startTime))
 	}(time.Now())
-	t := agent.Tracer.BeginTrace("handleImage")
-	defer t.EndTrace()
+
+	t := h.beginTrace("handleImage")
+	defer h.endTrace(t)
 
 	defer r.Body.Close()
 
@@ -139,10 +151,10 @@ func handleImage(w http.ResponseWriter, r *http.Request,
 
 	// Clean up the URL path into a local filename.
 	filename := sanitizeFilename(r.URL.Path)
-	storagePath := cache.GetFileName(r.URL.Path)
+	storagePath := h.cache.GetFileName(r.URL.Path)
 
 	// Prevent the node from caching any new documents if it has been marked as offline
-	if !ring.Manager.Ping() && !cache.Contains(filename) {
+	if !h.ring.Manager.Ping() && !h.cache.Contains(filename) {
 		http.Error(w, "Node is offline", 503)
 		return
 	}
@@ -150,7 +162,7 @@ func handleImage(w http.ResponseWriter, r *http.Request,
 	// Try to get the file from the cache and/or backing store.
 	// NOTE: this can block for a long time while we download a file
 	// from the backing store.
-	if !cache.Fetch(filename) {
+	if !h.cache.Fetch(filename) {
 		http.NotFound(w, r)
 		return
 	}
@@ -159,12 +171,12 @@ func handleImage(w http.ResponseWriter, r *http.Request,
 	defer func(startTime time.Time) {
 		log.Debugf("Raster time %s for %s page %d", time.Since(startTime), r.URL.Path, page)
 	}(time.Now())
-	t2 := agent.Tracer.BeginTrace("rasterize")
-	defer t2.EndTrace()
+	t2 := h.beginTrace("rasterize")
+	defer h.endTrace(t2)
 
 	// Get ahold of a rasterizer for this document, either from the cache,
 	// or newly constructed by the cache.
-	raster, err := rasterCache.GetRasterizer(storagePath)
+	raster, err := h.rasterCache.GetRasterizer(storagePath)
 	if err != nil {
 		log.Errorf("Unable to get rasterizer for %s: '%s'", storagePath, err)
 		http.Error(w, fmt.Sprintf("Error encountered while processing pdf %s: '%s'", storagePath, err), 500)
@@ -201,13 +213,11 @@ func handleImage(w http.ResponseWriter, r *http.Request,
 }
 
 // Health route for the service
-func handleHealth(w http.ResponseWriter, r *http.Request,
-	cache *filecache.FileCache, rasterCache *RasterCache, ring *ringman.MemberlistRing, agent *gorelic.Agent) {
-
+func (h *RasterHttpServer) handleHealth(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
 	status := "OK"
-	if !ring.Manager.Ping() {
+	if !h.ring.Manager.Ping() {
 		status = "Offline"
 	}
 
@@ -217,8 +227,8 @@ func handleHealth(w http.ResponseWriter, r *http.Request,
 		RasterCacheSize int
 	}{
 		Status:          status,
-		FileCacheSize:   cache.Cache.Len(),
-		RasterCacheSize: rasterCache.rasterizers.Len(),
+		FileCacheSize:   h.cache.Cache.Len(),
+		RasterCacheSize: h.rasterCache.rasterizers.Len(),
 	}
 
 	data, err := json.MarshalIndent(healthData, "", "  ")
@@ -229,7 +239,7 @@ func handleHealth(w http.ResponseWriter, r *http.Request,
 
 	w.Header().Set("Content-Type", "application/json")
 
-	if !ring.Manager.Ping() {
+	if !h.ring.Manager.Ping() {
 		w.WriteHeader(503)
 		w.Write(data)
 		return
@@ -239,9 +249,7 @@ func handleHealth(w http.ResponseWriter, r *http.Request,
 }
 
 // handleShutdown creates an HTTP handler for triggering a soft shutdown
-func handleShutdown(w http.ResponseWriter, r *http.Request,
-	cache *filecache.FileCache, _ *RasterCache, ring *ringman.MemberlistRing, agent *gorelic.Agent) {
-
+func (h *RasterHttpServer) handleShutdown(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
 	// Make sure we don't cause undefined behaviour if shutdown gets called
@@ -249,15 +257,15 @@ func handleShutdown(w http.ResponseWriter, r *http.Request,
 	shutdownMutex.Lock()
 	defer shutdownMutex.Unlock()
 
-	if !ring.Manager.Ping() {
+	if !h.ring.Manager.Ping() {
 		http.Error(w, "Node is offline", 503)
 		return
 	}
 
 	log.Warnf("Shutdown triggered via HTTP")
 
-	ring.Shutdown()
-	go cache.Cache.Purge()
+	h.ring.Shutdown()
+	go h.cache.Cache.Purge()
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Write([]byte(`{"status": "OK"}`))
@@ -266,12 +274,23 @@ func handleShutdown(w http.ResponseWriter, r *http.Request,
 
 func serveHttp(config *Config, cache *filecache.FileCache, ring *ringman.MemberlistRing, rasterCache *RasterCache, agent *gorelic.Agent) error {
 	// Simple wrapper to make definitions simpler to read/understand
-	handle := func(f ourHttpHandlerFunc) func(http.ResponseWriter, *http.Request) {
+	handle := func(f func(http.ResponseWriter, *http.Request)) func(http.ResponseWriter, *http.Request) {
 		if agent != nil {
-			return agent.WrapHTTPHandlerFunc(makeHandler(f, cache, rasterCache, ring, agent))
+			return agent.WrapHTTPHandlerFunc(f)
 		} else {
-			return makeHandler(f, cache, rasterCache, ring, agent)
+			return f
 		}
+	}
+
+	if agent != nil {
+		log.Info("Configuring New Relic http tracing")
+	}
+
+	h := &RasterHttpServer{
+		cache:       cache,
+		ring:        ring,
+		rasterCache: rasterCache,
+		agent:       agent,
 	}
 
 	// ------------------------------------------------------------------------
@@ -279,10 +298,10 @@ func serveHttp(config *Config, cache *filecache.FileCache, ring *ringman.Memberl
 	// ------------------------------------------------------------------------
 	http.HandleFunc("/favicon.ico", http.NotFound) // Browsers look for this
 	http.Handle("/hashring/", http.StripPrefix("/hashring", ring.HttpMux()))
-	http.HandleFunc("/health", handle(handleHealth))
-	http.HandleFunc("/rastercache/purge", handle(handleClearRasterCache))
-	http.HandleFunc("/shutdown", handle(handleShutdown))
-	http.HandleFunc("/", handle(handleImage))
+	http.HandleFunc("/health", handle(h.handleHealth))
+	http.HandleFunc("/rastercache/purge", handle(h.handleClearRasterCache))
+	http.HandleFunc("/shutdown", handle(h.handleShutdown))
+	http.HandleFunc("/", handle(h.handleImage))
 	// ------------------------------------------------------------------------
 	err := http.ListenAndServe(
 		fmt.Sprintf(":%d", config.HttpPort), handlers.LoggingHandler(os.Stdout, http.DefaultServeMux),
