@@ -166,8 +166,7 @@
 [[projects]]
   name = "github.com/yvasiyarov/gorelic"
   packages = ["."]
-  revision = "4dc1bb7ab951bc884feb2c009092b1a454152355"
-  version = "v0.0.6"
+  revision = "ae09aa139a2b7f638e2412baceaceebd41eff115"
 
 [[projects]]
   branch = "master"
@@ -190,6 +189,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "b955fb4415c190c686ca6eb2ee661b1c824f1b8b085e40d42b55d0c7165132e1"
+  inputs-digest = "ebe270411319f3537ac83678a8188d9185396a905fb0441ee282521cf8f8b0b2"
   solver-name = "gps-cdcl"
   solver-version = 1

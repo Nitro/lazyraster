@@ -40,8 +40,10 @@ func serveRedis(addr string, ringman *ringman.HashRingManager, agent *gorelic.Ag
 	srv.HandleFunc("select", func(out *redeo.Responder, _ *redeo.Request) error {
 		defer measureSince("select", time.Now().UTC())
 
-		t := agent.Tracer.BeginTrace("redisSelect")
-		defer t.EndTrace()
+		if agent != nil {
+			t := agent.Tracer.BeginTrace("redisSelect")
+			defer t.EndTrace()
+		}
 
 		out.WriteOK()
 		return nil
@@ -50,8 +52,10 @@ func serveRedis(addr string, ringman *ringman.HashRingManager, agent *gorelic.Ag
 	srv.HandleFunc("get", func(out *redeo.Responder, req *redeo.Request) error {
 		defer measureSince("get", time.Now())
 
-		t := agent.Tracer.BeginTrace("redisGet")
-		defer t.EndTrace()
+		if agent != nil {
+			t := agent.Tracer.BeginTrace("redisGet")
+			defer t.EndTrace()
+		}
 
 		if len(req.Args) != 1 {
 			return req.WrongNumberOfArgs()

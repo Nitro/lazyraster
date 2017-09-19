@@ -57,7 +57,7 @@ AWS environment variables:
 
 If you are a New Relic customer and wish to monitor this using New Relic's
 service, the service includes the
-[Gorelic](https://github.com/yvasiyarov/gorelic) platform agent.  Thi is
+[Gorelic](https://github.com/yvasiyarov/gorelic) platform agent.  This is
 currently used in place of the New Relic go agent due to [major licensing
 issues](https://github.com/newrelic/go-agent/issues/45) with the current Go
 agent. You may trigger the use of the New Relic agent by starting the service

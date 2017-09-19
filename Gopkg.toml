@@ -58,4 +58,4 @@ ignored = ["github.com/Nitro/lazypdf"]
 
 [[constraint]]
   name = "github.com/yvasiyarov/gorelic"
-  version = "v0.0.6-44-gae09aa1"
+  revision = "ae09aa139a2b7f638e2412baceaceebd41eff115"
