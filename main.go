@@ -33,6 +33,23 @@ type Config struct {
 	ClusterName             string   `envconfig:"CLUSTER_NAME" default:"default"`
 	AdvertiseMemberlistHost string   `envconfig:"ADVERTISE_MEMBERLIST_HOST"`
 	AdvertiseMemberlistPort int      `envconfig:"ADVERTISE_MEMBERLIST_PORT" default:"7946"`
+	LoggingLevel            string   `envconfig:"LOGGING_LEVEL" default:"info"`
+}
+
+func configureLoggingLevel(config *Config) {
+	level := config.LoggingLevel
+	switch {
+	case len(level) == 0:
+		log.SetLevel(log.InfoLevel)
+	case level == "info":
+		log.SetLevel(log.InfoLevel)
+	case level == "warn":
+		log.SetLevel(log.WarnLevel)
+	case level == "error":
+		log.SetLevel(log.ErrorLevel)
+	case level == "debug":
+		log.SetLevel(log.DebugLevel)
+	}
 }
 
 func findMesosOverrideFor(port int, defaultPort int) (int, error) {
@@ -129,7 +146,6 @@ func configureNewRelic() *gorelic.Agent {
 	if svcName != "" && envName != "" {
 		agent.NewrelicName = fmt.Sprintf("%s-%s", svcName, envName)
 	}
-	agent.Verbose = true
 	agent.NewrelicLicense = nrLicense
 	agent.Run()
 
@@ -137,14 +153,14 @@ func configureNewRelic() *gorelic.Agent {
 }
 
 func main() {
-	log.SetLevel(log.DebugLevel)
-
 	var config Config
 
 	err := envconfig.Process("raster", &config)
 	if err != nil {
 		log.Fatalf("Failed to parse the configuration parameters: %s", err)
 	}
+
+	configureLoggingLevel(&config)
 
 	err = configureMesosMappings(&config)
 	if err != nil {
