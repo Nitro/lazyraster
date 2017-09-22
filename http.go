@@ -188,6 +188,8 @@ func (h *RasterHttpServer) handleImage(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if lazypdf.IsBadPage(err) {
 			http.Error(w, fmt.Sprintf("Page is not part of this pdf: %s", err), 404)
+		} else if lazypdf.IsRasterTimeout(err) {
+			http.Error(w, fmt.Sprintf("Page rendering timed out: %s", err), 503)
 		} else {
 			log.Errorf("Error while processing pdf: %s", err)
 			http.Error(w, fmt.Sprintf("Error encountered while processing pdf: %s", err), 500)
