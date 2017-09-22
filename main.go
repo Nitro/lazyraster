@@ -97,12 +97,6 @@ func configureMesosMappings(config *Config) error {
 	return nil
 }
 
-func configureDefaultClusterSeed(config *Config) {
-	defaultClusterSeed := "127.0.0.1:" + strconv.Itoa(MemberlistBindPort)
-
-	config.ClusterSeeds = append(config.ClusterSeeds, defaultClusterSeed)
-}
-
 // Set up some signal handling for kill/term/int and try to exit the
 // cluster and clean out the cache before we exit.
 func handleSignals(fCache *filecache.FileCache, mList *memberlist.Memberlist) {
@@ -172,8 +166,6 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed set the Mesos config: %s", err)
 	}
-
-	configureDefaultClusterSeed(&config)
 
 	rubberneck.NewPrinter(log.Infof, rubberneck.NoAddLineFeed).Print(config)
 
