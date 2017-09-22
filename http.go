@@ -295,6 +295,10 @@ func serveHttp(config *Config, cache *filecache.FileCache, ring *ringman.Memberl
 		agent:       agent,
 	}
 
+	// We have to wrap this to make LoggingHandler happy
+	docHandler := http.NewServeMux()
+	docHandler.HandleFunc("/", handle(h.handleImage))
+
 	// ------------------------------------------------------------------------
 	// Route definitions
 	// ------------------------------------------------------------------------
@@ -303,10 +307,10 @@ func serveHttp(config *Config, cache *filecache.FileCache, ring *ringman.Memberl
 	http.HandleFunc("/health", handle(h.handleHealth))
 	http.HandleFunc("/rastercache/purge", handle(h.handleClearRasterCache))
 	http.HandleFunc("/shutdown", handle(h.handleShutdown))
-	http.HandleFunc("/", handle(h.handleImage))
+	http.Handle("/", handlers.LoggingHandler(os.Stdout, docHandler))
 	// ------------------------------------------------------------------------
 	err := http.ListenAndServe(
-		fmt.Sprintf(":%d", config.HttpPort), handlers.LoggingHandler(os.Stdout, http.DefaultServeMux),
+		fmt.Sprintf(":%d", config.HttpPort), http.DefaultServeMux,
 	)
 
 	if err != nil {
