@@ -87,5 +87,12 @@ func Test_IsValidSignature(t *testing.T) {
 				So(IsValidSignature(secret, bucketSize, baseTime, url), ShouldBeTrue)
 			}
 		})
+
+		Convey("does not accept signatures from outside the bucket", func() {
+			baseTime = baseTime.Add(2*bucketSize)
+			for _, url := range urls {
+				So(IsValidSignature(secret, bucketSize, baseTime, url), ShouldBeFalse)
+			}
+		})
 	})
 }
