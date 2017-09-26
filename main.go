@@ -33,6 +33,7 @@ type Config struct {
 	ClusterName             string   `envconfig:"CLUSTER_NAME" default:"default"`
 	AdvertiseMemberlistHost string   `envconfig:"ADVERTISE_MEMBERLIST_HOST"`
 	AdvertiseMemberlistPort int      `envconfig:"ADVERTISE_MEMBERLIST_PORT" default:"7946"`
+	UrlSigningSecret        string   `envconfig:"URL_SIGNING_SECRET"`
 	LoggingLevel            string   `envconfig:"LOGGING_LEVEL" default:"info"`
 }
 
@@ -193,16 +194,21 @@ func main() {
 		log.Fatalf("Unable to establish memberlist ring: %s", err)
 	}
 
+	// Set up a rasterizer cache (in memory, keeps open documents ready to go)
 	rasterCache, err := NewDefaultRasterCache()
 	if err != nil {
 		log.Fatalf("Unable to initialize the rasterizer cache: %s", err)
 	}
 
-	fCache, err := filecache.NewS3Cache(512, config.BaseDir, config.S3Bucket, config.AwsRegion)
+	// Set up an S3-backed filecache to underly the rasterCache
+	fCache, err := filecache.NewS3Cache(
+		config.CacheSize, config.BaseDir, config.S3Bucket, config.AwsRegion,
+	)
 	if err != nil {
 		log.Fatalf("Unable to create LRU cache: %s", err)
 	}
 
+	// Tie the deletion from file cache to the deletion from the rasterCache
 	fCache.OnEvict = func(hashKey interface{}, filename interface{}) {
 		// We need to make sure we delete a rasterizer if one exists and the file
 		// has been deleted out from under it.
@@ -220,7 +226,7 @@ func main() {
 		}
 	}()
 
-	err = serveHttp(&config, fCache, ring, rasterCache, agent)
+	err = serveHttp(&config, fCache, ring, rasterCache, config.UrlSigningSecret, agent)
 	if err != nil {
 		panic(err.Error())
 	}
