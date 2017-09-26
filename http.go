@@ -16,6 +16,7 @@ import (
 
 	"github.com/Nitro/filecache"
 	"github.com/Nitro/lazypdf"
+	"github.com/Nitro/lazyraster/urlsign"
 	"github.com/Nitro/ringman"
 	"github.com/gorilla/handlers"
 	log "github.com/sirupsen/logrus"
@@ -24,7 +25,8 @@ import (
 
 const (
 	// ImageMaxWidth is the maximum supported image width
-	ImageMaxWidth = 4096
+	ImageMaxWidth     = 4096
+	SigningBucketSize = 8 * time.Hour
 )
 
 var (
@@ -86,6 +88,7 @@ type RasterHttpServer struct {
 	cache       *filecache.FileCache
 	rasterCache *RasterCache
 	ring        *ringman.MemberlistRing
+	urlSecret   string
 	agent       *gorelic.Agent
 }
 
@@ -148,6 +151,14 @@ func (h *RasterHttpServer) handleImage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 400)
 	}
 	imageType := imageTypeForRequest(r)
+
+	// If we are supposed to use signed URLs, then do it!
+	if len(h.urlSecret) > 0 {
+		if !urlsign.IsValidSignature(h.urlSecret, SigningBucketSize, time.Now().UTC(), r.URL.String()) {
+			http.Error(w, "Invalid signature!", 403)
+			return
+		}
+	}
 
 	// Clean up the URL path into a local filename.
 	filename := sanitizeFilename(r.URL.Path)
@@ -274,7 +285,8 @@ func (h *RasterHttpServer) handleShutdown(w http.ResponseWriter, r *http.Request
 
 }
 
-func serveHttp(config *Config, cache *filecache.FileCache, ring *ringman.MemberlistRing, rasterCache *RasterCache, agent *gorelic.Agent) error {
+func serveHttp(config *Config, cache *filecache.FileCache, ring *ringman.MemberlistRing,
+	rasterCache *RasterCache, urlSecret string, agent *gorelic.Agent) error {
 	// Simple wrapper to make definitions simpler to read/understand
 	handle := func(f func(http.ResponseWriter, *http.Request)) func(http.ResponseWriter, *http.Request) {
 		if agent != nil {
@@ -288,10 +300,15 @@ func serveHttp(config *Config, cache *filecache.FileCache, ring *ringman.Memberl
 		log.Info("Configuring New Relic http tracing")
 	}
 
+	if len(urlSecret) < 1 {
+		log.Warn("No URL signing secret was passed... running in insecure mode!")
+	}
+
 	h := &RasterHttpServer{
 		cache:       cache,
 		ring:        ring,
 		rasterCache: rasterCache,
+		urlSecret:   urlSecret,
 		agent:       agent,
 	}
 
