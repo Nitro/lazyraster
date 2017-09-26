@@ -16,8 +16,8 @@ import (
 
 	"github.com/Nitro/filecache"
 	"github.com/Nitro/lazypdf"
-	"github.com/Nitro/lazyraster/urlsign"
 	"github.com/Nitro/ringman"
+	"github.com/Nitro/urlsign"
 	"github.com/gorilla/handlers"
 	log "github.com/sirupsen/logrus"
 	"github.com/yvasiyarov/gorelic"

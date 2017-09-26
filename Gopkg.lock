@@ -21,6 +21,12 @@
 
 [[projects]]
   branch = "master"
+  name = "github.com/Nitro/urlsign"
+  packages = ["."]
+  revision = "f45f7150dda7ac0fb7022989b66b989ca5e96956"
+
+[[projects]]
+  branch = "master"
   name = "github.com/armon/go-metrics"
   packages = ["."]
   revision = "023a4bbe4bb9bfb23ee7e1afc8d0abad217641f3"
@@ -189,6 +195,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "ebe270411319f3537ac83678a8188d9185396a905fb0441ee282521cf8f8b0b2"
+  inputs-digest = "7ee5c1a8244cdbcfff8e86ab6aa03950c7ccfd29612bd14c23eb6345d5a120ea"
   solver-name = "gps-cdcl"
   solver-version = 1
