@@ -26,6 +26,7 @@ import (
 const (
 	// ImageMaxWidth is the maximum supported image width
 	ImageMaxWidth     = 4096
+	ImageMaxScale     = 3.0
 	SigningBucketSize = 8 * time.Hour
 )
 
@@ -84,6 +85,19 @@ func widthForRequest(r *http.Request) (int64, error) {
 	return width, nil
 }
 
+func scaleForRequest(r *http.Request) (float64, error) {
+	var scale float64
+	var err error
+	if r.FormValue("scale") != "" {
+		scale, err = strconv.ParseFloat(r.FormValue("scale"), 64)
+		if err != nil || scale < 0.0 || scale > ImageMaxScale {
+			return 0, fmt.Errorf("Invalid scale! Limit is %f", ImageMaxScale)
+		}
+	}
+
+	return scale, nil
+}
+
 type RasterHttpServer struct {
 	cache       *filecache.FileCache
 	rasterCache *RasterCache
@@ -137,27 +151,33 @@ func (h *RasterHttpServer) handleImage(w http.ResponseWriter, r *http.Request) {
 
 	defer r.Body.Close()
 
-	// Let's first parse out some URL args and return errors if
-	// we got some bogus stuff.
-	page, err := strconv.ParseInt(r.FormValue("page"), 10, 32)
-	if err != nil || page < 1 {
-		http.Error(w, "Invalid page", 400)
-		return
-	}
-
-	imageQuality := imageQualityForRequest(r)
-	width, err := widthForRequest(r)
-	if err != nil {
-		http.Error(w, err.Error(), 400)
-	}
-	imageType := imageTypeForRequest(r)
-
 	// If we are supposed to use signed URLs, then do it!
 	if len(h.urlSecret) > 0 {
 		if !urlsign.IsValidSignature(h.urlSecret, SigningBucketSize, time.Now().UTC(), r.URL.String()) {
 			http.Error(w, "Invalid signature!", 403)
 			return
 		}
+	}
+
+	// Let's first parse out some URL args and return errors if
+	// we got some bogus stuff.
+	page, err := strconv.ParseInt(r.FormValue("page"), 10, 32)
+	if err != nil || page < 1 {
+		return
+	}
+
+	// Parse out and handle some HTTP parameters
+	imageQuality := imageQualityForRequest(r)
+	width, err := widthForRequest(r)
+	if err != nil {
+		http.Error(w, err.Error(), 400)
+		return
+	}
+	imageType := imageTypeForRequest(r)
+	scale, err := scaleForRequest(r)
+	if err != nil {
+		http.Error(w, err.Error(), 400)
+		return
 	}
 
 	// Clean up the URL path into a local filename.
@@ -195,7 +215,7 @@ func (h *RasterHttpServer) handleImage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Actually render the page to a bitmap so we can encode to JPEG/PNG
-	image, err := raster.GeneratePage(int(page), int(width))
+	image, err := raster.GeneratePage(int(page), int(width), float64(scale))
 	if err != nil {
 		if lazypdf.IsBadPage(err) {
 			http.Error(w, fmt.Sprintf("Page is not part of this pdf: %s", err), 404)
