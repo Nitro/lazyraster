@@ -69,7 +69,7 @@ func findMesosOverrideFor(port int, defaultPort int) (int, error) {
 }
 
 func configureMesosMappings(config *Config) error {
-	if hostname, ok := os.LookupEnv("MESOS_HOSTNAME"); ok {
+	if hostname, ok := os.LookupEnv("MESOS_HOST"); ok {
 		// The Memberlist AdvertiseAddr requires an IP address
 		ipAddr, err := net.LookupIP(hostname)
 		if err != nil {

@@ -9,7 +9,6 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 	"os"
-	"regexp"
 	"strconv"
 	"sync"
 	"time"
@@ -31,7 +30,6 @@ const (
 )
 
 var (
-	sanitizer     *regexp.Regexp = regexp.MustCompile(`(^\/|^/|(^\./)+|^(\.\.)+|^(\.)+)`)
 	shutdownMutex sync.Mutex
 )
 
@@ -47,11 +45,6 @@ func imageQualityForRequest(r *http.Request) int {
 	}
 
 	return imageQuality
-}
-
-func sanitizeFilename(filename string) string {
-	replaced := sanitizer.ReplaceAll([]byte(filename), []byte{})
-	return string(replaced)
 }
 
 func imageTypeForRequest(r *http.Request) string {
@@ -181,8 +174,8 @@ func (h *RasterHttpServer) handleImage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Clean up the URL path into a local filename.
-	filename := sanitizeFilename(r.URL.Path)
-	storagePath := h.cache.GetFileName(r.URL.Path)
+	filename := r.URL.Path[1:]
+	storagePath := h.cache.GetFileName(filename)
 
 	// Prevent the node from caching any new documents if it has been marked as offline
 	if !h.ring.Manager.Ping() && !h.cache.Contains(filename) {
