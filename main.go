@@ -34,6 +34,7 @@ type Config struct {
 	AdvertiseMemberlistHost string   `envconfig:"ADVERTISE_MEMBERLIST_HOST"`
 	AdvertiseMemberlistPort int      `envconfig:"ADVERTISE_MEMBERLIST_PORT" default:"7946"`
 	UrlSigningSecret        string   `envconfig:"URL_SIGNING_SECRET"`
+	RasterCacheSize         int      `envconfig:"RASTER_CACHE_SIZE" default:"20"`
 	LoggingLevel            string   `envconfig:"LOGGING_LEVEL" default:"info"`
 }
 
@@ -187,7 +188,7 @@ func main() {
 	}
 
 	// Set up a rasterizer cache (in memory, keeps open documents ready to go)
-	rasterCache, err := NewDefaultRasterCache()
+	rasterCache, err := NewRasterCache(config.RasterCacheSize)
 	if err != nil {
 		log.Fatalf("Unable to initialize the rasterizer cache: %s", err)
 	}
