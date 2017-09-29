@@ -10,6 +10,7 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -300,6 +301,10 @@ func (h *RasterHttpServer) handleShutdown(w http.ResponseWriter, r *http.Request
 
 func serveHttp(config *Config, cache *filecache.FileCache, ring *ringman.MemberlistRing,
 	rasterCache *RasterCache, urlSecret string, agent *gorelic.Agent) error {
+
+	// Protect against garbage configuration
+	urlSecret = strings.TrimSpace(urlSecret)
+
 	// Simple wrapper to make definitions simpler to read/understand
 	handle := func(f func(http.ResponseWriter, *http.Request)) func(http.ResponseWriter, *http.Request) {
 		if agent != nil {
