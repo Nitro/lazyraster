@@ -18,7 +18,10 @@ import (
 	"github.com/yvasiyarov/gorelic"
 )
 
-const MemberlistBindPort = 7946
+const (
+	ShutdownTimeout    = 10 * time.Second
+	MemberlistBindPort = 7946
+)
 
 // Config contains the application configuration parameters
 type Config struct {
@@ -101,7 +104,7 @@ func configureMesosMappings(config *Config) error {
 
 // Set up some signal handling for kill/term/int and try to exit the
 // cluster and clean out the cache before we exit.
-func handleSignals(fCache *filecache.FileCache, mList *memberlist.Memberlist) {
+func handleSignals(fCache *filecache.FileCache, ring *ringman.MemberlistRing) {
 	sigChan := make(chan os.Signal, 1) // Buffered!
 
 	// Grab some signals we want to catch where possible
@@ -111,18 +114,21 @@ func handleSignals(fCache *filecache.FileCache, mList *memberlist.Memberlist) {
 
 	sig := <-sigChan
 	log.Warnf("Received signal '%s', attempting clean shutdown", sig)
-	mList.Leave(2 * time.Second) // 2 second timeout
 
-	err := mList.Shutdown()
-	if err != nil {
-		log.Warnf("Got error while shutting down Memberlist: %s", err)
+	// Stop the hashring and memberlist
+	ring.Shutdown()
+
+	waitChan := make(chan struct{}, 1)
+	fCache.PurgeAsync(waitChan)
+
+	log.Infof("Clean shutdown initiated... could take up to %s", ShutdownTimeout)
+	// Try waiting for the purge to complete, but don't wait forever
+	select {
+	case <-waitChan: // nothing
+	case <-time.After(ShutdownTimeout): // nothing
 	}
 
-	go fCache.Cache.Purge()
-
-	log.Info("Clean shutdown initiated... waiting")
-	time.Sleep(3 * time.Second) // Try to let it quit
-	os.Exit(130)                // Ctrl-C received or equivalent
+	os.Exit(130) // Ctrl-C received or equivalent
 }
 
 // configureNewRelic sets up and starts a Gorelic agent if we have a
@@ -209,7 +215,7 @@ func main() {
 	}
 
 	// Set up the signal handler to try to clean up on exit
-	go handleSignals(fCache, ring.Memberlist)
+	go handleSignals(fCache, ring)
 
 	// Run the Redis protocol server and wire it up to our hash ring
 	go func() {
