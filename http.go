@@ -145,6 +145,9 @@ func (h *RasterHttpServer) handleImage(w http.ResponseWriter, r *http.Request) {
 
 	defer r.Body.Close()
 
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "GET")
+
 	// If we are supposed to use signed URLs, then do it!
 	if len(h.urlSecret) > 0 {
 		if !urlsign.IsValidSignature(h.urlSecret, SigningBucketSize, time.Now().UTC(), r.URL.String()) {
@@ -175,7 +178,7 @@ func (h *RasterHttpServer) handleImage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Clean up the URL path into a local filename.
-	filename := r.URL.Path[1:]
+	filename := strings.Replace(r.URL.Path, "/documents/", "", 1)
 	storagePath := h.cache.GetFileName(filename)
 
 	// Prevent the node from caching any new documents if it has been marked as offline
@@ -224,8 +227,7 @@ func (h *RasterHttpServer) handleImage(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", imageType)
 	w.Header().Set("Cache-Control", "max-age=3600")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Methods", "GET")
+
 	if imageType == "image/jpeg" {
 		err = jpeg.Encode(w, image, &jpeg.Options{Quality: imageQuality})
 	} else {
@@ -342,7 +344,7 @@ func serveHttp(config *Config, cache *filecache.FileCache, ring *ringman.Memberl
 	http.HandleFunc("/health", handle(h.handleHealth))
 	http.HandleFunc("/rastercache/purge", handle(h.handleClearRasterCache))
 	http.HandleFunc("/shutdown", handle(h.handleShutdown))
-	http.Handle("/", handlers.LoggingHandler(os.Stdout, docHandler))
+	http.Handle("/documents/", handlers.LoggingHandler(os.Stdout, docHandler))
 	// ------------------------------------------------------------------------
 	err := http.ListenAndServe(
 		fmt.Sprintf(":%d", config.HttpPort), http.DefaultServeMux,
