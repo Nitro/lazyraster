@@ -117,6 +117,19 @@ func (h *RasterHttpServer) endTrace(t *gorelic.Trace) {
 	}
 }
 
+func (h *RasterHttpServer) isValidSignature(url string, w http.ResponseWriter) bool {
+	if len(h.urlSecret) < 1 {
+		return true
+	}
+
+	if !urlsign.IsValidSignature(h.urlSecret, SigningBucketSize, time.Now().UTC(), url) {
+		http.Error(w, "Invalid signature!", 403)
+		return false
+	}
+
+	return true
+}
+
 // Allows us to manually clear out the raster cache
 func (h *RasterHttpServer) handleClearRasterCache(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
@@ -130,6 +143,22 @@ func (h *RasterHttpServer) handleClearRasterCache(w http.ResponseWriter, r *http
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Write([]byte(`{"status": "OK"}`))
+}
+
+// urlToFilename converts the incoming URL path into a cached filename (this is
+// the filename on the backing store, not the cached filename locally).
+func urlToFilename(url string) string {
+	pathParts := strings.Split(strings.TrimLeft(url, "/documents"), "/")
+	if len(pathParts) < 1 {
+		return ""
+	}
+
+	base := 0
+
+	// XXX Temporary! Strip bucket name from URLs
+	base++
+
+	return strings.Join(pathParts[base:], "/")
 }
 
 // handleImage is an HTTP handler that responds to requests for pages
@@ -149,11 +178,8 @@ func (h *RasterHttpServer) handleImage(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Methods", "GET")
 
 	// If we are supposed to use signed URLs, then do it!
-	if len(h.urlSecret) > 0 {
-		if !urlsign.IsValidSignature(h.urlSecret, SigningBucketSize, time.Now().UTC(), r.URL.String()) {
-			http.Error(w, "Invalid signature!", 403)
-			return
-		}
+	if !h.isValidSignature(r.URL.String(), w) {
+		return
 	}
 
 	// Let's first parse out some URL args and return errors if
@@ -178,7 +204,12 @@ func (h *RasterHttpServer) handleImage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Clean up the URL path into a local filename.
-	filename := strings.Replace(r.URL.Path, "/documents/", "", 1)
+	filename := urlToFilename(r.URL.Path)
+	if filename == "" || filename == "/" {
+		http.Error(w, "Invalid filename!", 404)
+		return
+	}
+
 	storagePath := h.cache.GetFileName(filename)
 
 	// Prevent the node from caching any new documents if it has been marked as offline
