@@ -185,6 +185,9 @@ func main() {
 	mlConfig.BindPort = MemberlistBindPort
 	mlConfig.AdvertiseAddr = config.AdvertiseMemberlistHost
 	mlConfig.AdvertisePort = config.AdvertiseMemberlistPort
+	if config.AdvertiseMemberlistHost != "" {
+		mlConfig.Name = config.AdvertiseMemberlistHost
+	}
 	ring, err := ringman.NewMemberlistRing(
 		mlConfig,
 		config.ClusterSeeds, strconv.Itoa(config.AdvertiseHttpPort), config.ClusterName,
