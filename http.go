@@ -92,6 +92,21 @@ func scaleForRequest(r *http.Request) (float64, error) {
 	return scale, nil
 }
 
+func pageForRequest(r *http.Request) (int64, error) {
+	// Let's first parse out some URL args and return errors if
+	// we got some bogus stuff.
+	if r.FormValue("page") == "" {
+		return -1, fmt.Errorf("Invalid page!")
+	}
+	page, err := strconv.ParseInt(r.FormValue("page"), 10, 32)
+	if err != nil || page < 1 {
+		return -1, fmt.Errorf("Invalid page!")
+	}
+
+	return page, nil
+}
+
+
 type RasterHttpServer struct {
 	cache       *filecache.FileCache
 	rasterCache *RasterCache
@@ -179,17 +194,16 @@ func (h *RasterHttpServer) handleImage(w http.ResponseWriter, r *http.Request) {
 
 	// If we are supposed to use signed URLs, then do it!
 	if !h.isValidSignature(r.URL.String(), w) {
-		return
-	}
-
-	// Let's first parse out some URL args and return errors if
-	// we got some bogus stuff.
-	page, err := strconv.ParseInt(r.FormValue("page"), 10, 32)
-	if err != nil || page < 1 {
+		// The error code/message will already have been handled
 		return
 	}
 
 	// Parse out and handle some HTTP parameters
+	page, err := pageForRequest(r)
+	if err != nil {
+		http.Error(w, err.Error(), 400)
+		return
+	}
 	imageQuality := imageQualityForRequest(r)
 	width, err := widthForRequest(r)
 	if err != nil {
@@ -213,7 +227,7 @@ func (h *RasterHttpServer) handleImage(w http.ResponseWriter, r *http.Request) {
 	storagePath := h.cache.GetFileName(filename)
 
 	// Prevent the node from caching any new documents if it has been marked as offline
-	if !h.ring.Manager.Ping() && !h.cache.Contains(filename) {
+	if h.ring != nil && !h.ring.Manager.Ping() && !h.cache.Contains(filename) {
 		http.Error(w, "Node is offline", 503)
 		return
 	}
