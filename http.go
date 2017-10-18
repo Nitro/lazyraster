@@ -34,6 +34,7 @@ var (
 	shutdownMutex sync.Mutex
 )
 
+// imageQualityForRequest parses out the value for the imageQuality parameter
 func imageQualityForRequest(r *http.Request) int {
 	imageQuality := 100
 	if r.FormValue("quality") != "" {
@@ -48,6 +49,7 @@ func imageQualityForRequest(r *http.Request) int {
 	return imageQuality
 }
 
+// imageTypeForRequest parses out the value for the imageType parameter
 func imageTypeForRequest(r *http.Request) string {
 	imageType := "image/png"
 	iType := r.FormValue("imageType")
@@ -66,6 +68,7 @@ func imageTypeForRequest(r *http.Request) string {
 	return imageType
 }
 
+// widthForRequest parses out the value for the width parameter
 func widthForRequest(r *http.Request) (int64, error) {
 	var width uint64
 	var err error
@@ -83,6 +86,7 @@ func widthForRequest(r *http.Request) (int64, error) {
 	return int64(width), nil
 }
 
+// scaleForRequest parses outt he value from the scale parameter
 func scaleForRequest(r *http.Request) (float64, error) {
 	var scale float64
 	var err error
@@ -96,6 +100,7 @@ func scaleForRequest(r *http.Request) (float64, error) {
 	return scale, nil
 }
 
+// pageForRequest parses out the value of the page parameter
 func pageForRequest(r *http.Request) (int64, error) {
 	// Let's first parse out some URL args and return errors if
 	// we got some bogus stuff.
@@ -107,6 +112,15 @@ func pageForRequest(r *http.Request) (int64, error) {
 	return int64(page), nil
 }
 
+// timestampForRequest parses out the Unix timestamp from the newerThan parameter
+func timestampForRequest(r *http.Request) time.Time {
+	timestamp, err := strconv.ParseUint(r.FormValue("newerThan"), 10, 32)
+	if err != nil {
+		return time.Unix(0, 0)
+	}
+
+	return time.Unix(int64(timestamp), 0)
+}
 
 type RasterHttpServer struct {
 	cache       *filecache.FileCache
@@ -133,6 +147,7 @@ func (h *RasterHttpServer) endTrace(t *gorelic.Trace) {
 	}
 }
 
+// isValidSignature is a wrapper to handle urlsign.IsValidSignature
 func (h *RasterHttpServer) isValidSignature(url string, w http.ResponseWriter) bool {
 	if len(h.urlSecret) < 1 {
 		return true
@@ -236,9 +251,17 @@ func (h *RasterHttpServer) handleImage(w http.ResponseWriter, r *http.Request) {
 	// Try to get the file from the cache and/or backing store.
 	// NOTE: this can block for a long time while we download a file
 	// from the backing store.
-	if !h.cache.Fetch(filename) {
-		http.NotFound(w, r)
-		return
+	timestamp := timestampForRequest(r)
+	if time.Unix(0, 0).Before(timestamp) { // Cache busting mechanism for forced reload
+		if !h.cache.FetchNewerThan(filename, timestamp) {
+			http.NotFound(w, r)
+			return
+		}
+	} else {
+		if !h.cache.Fetch(filename) {
+			http.NotFound(w, r)
+			return
+		}
 	}
 
 	// Log how long we take to rasterize things

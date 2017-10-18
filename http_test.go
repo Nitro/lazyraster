@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http/httptest"
@@ -190,9 +191,9 @@ func Test_EndToEnd(t *testing.T) {
 		})
 
 		Convey("When everything is working", func() {
-				os.MkdirAll(filepath.Join(os.TempDir(), filepath.Dir(filename)), 0755)
-				CopyFile(cache.GetFileName("sample.pdf"), "fixtures/sample.pdf", 0644)
-				recorder := httptest.NewRecorder()
+			os.MkdirAll(filepath.Join(os.TempDir(), filepath.Dir(filename)), 0755)
+			CopyFile(cache.GetFileName("sample.pdf"), "fixtures/sample.pdf", 0644)
+			recorder := httptest.NewRecorder()
 
 			Convey("Handles a normal request", func() {
 				req := httptest.NewRequest("GET", "/documents/somewhere/sample.pdf?page=1", nil)
@@ -240,6 +241,56 @@ func Test_EndToEnd(t *testing.T) {
 				So(err, ShouldBeNil)
 				So(len(body), ShouldBeGreaterThan, 1024)
 				So(recorder.Result().StatusCode, ShouldEqual, 200)
+			})
+		})
+
+		Convey("When timestamps are supplied for cache busting", func() {
+			filename := cache.GetFileName("sample.pdf")
+			os.MkdirAll(filepath.Dir(filename), 0755)
+			CopyFile(filename, "fixtures/sample.pdf", 0644)
+			recorder := httptest.NewRecorder()
+
+			cache.Cache.Add("sample.pdf", filename)
+			// On reload the file gets evicted/deleted so we need to put it back
+			reloadableDownloader := func(fname string, localPath string) error {
+				CopyFile(filename, "fixtures/sample.pdf", 0644)
+				return mockDownloader(fname, localPath)
+			}
+			cache.DownloadFunc = reloadableDownloader
+
+			Convey("Downloads if the timestamp is newer", func() {
+				fileTime := time.Now().Add(1 * time.Second) // File times are local time!
+				req := httptest.NewRequest(
+					"GET",
+					fmt.Sprintf("/documents/somewhere/sample.pdf?newerThan=%d&page=1", fileTime.Unix()),
+					nil,
+				)
+
+				h.handleImage(recorder, req)
+
+				So(didDownload, ShouldBeTrue)
+			})
+
+			Convey("Doesn't download if the timestamp is absent", func() {
+				req := httptest.NewRequest("GET", "/documents/somewhere/sample.pdf?page=1", nil)
+
+				h.handleImage(recorder, req)
+
+				So(didDownload, ShouldBeFalse)
+			})
+
+			Convey("Doesn't download if the timestamp is older", func() {
+				fileTime := time.Now().Add(-1 * time.Second) // File times are local time!
+				req := httptest.NewRequest(
+					"GET",
+					fmt.Sprintf("/documents/somewhere/sample.pdf?newerThan=%d&page=1", fileTime.Unix()),
+					nil,
+				)
+
+				h.handleImage(recorder, req)
+
+				So(didDownload, ShouldBeFalse)
+
 			})
 		})
 	})
