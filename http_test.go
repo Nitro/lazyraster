@@ -132,12 +132,17 @@ func Test_EndToEnd(t *testing.T) {
 				recorder := httptest.NewRecorder()
 
 				h.handleImage(recorder, req)
+
+				body, err := ioutil.ReadAll(recorder.Result().Body)
+				So(err, ShouldBeNil)
 				So(recorder.Result().StatusCode, ShouldEqual, 400)
+				So(string(body), ShouldContainSubstring, "Invalid page")
 			})
 
 			Convey("When file is not present", func() {
 				req := httptest.NewRequest("GET", "/documents/somewhere/asdf.pdf", nil)
 				recorder := httptest.NewRecorder()
+
 				h.handleImage(recorder, req)
 
 				body, err := ioutil.ReadAll(recorder.Result().Body)
@@ -157,6 +162,30 @@ func Test_EndToEnd(t *testing.T) {
 				So(err, ShouldBeNil)
 				So(recorder.Result().StatusCode, ShouldEqual, 403)
 				So(string(body), ShouldContainSubstring, "Invalid signature")
+			})
+
+			Convey("Doesn't accept negative width", func() {
+				req := httptest.NewRequest("GET", "/documents/somewhere/sample.pdf?page=1&width=-300", nil)
+				recorder := httptest.NewRecorder()
+
+				h.handleImage(recorder, req)
+
+				body, err := ioutil.ReadAll(recorder.Result().Body)
+				So(err, ShouldBeNil)
+				So(recorder.Result().StatusCode, ShouldEqual, 400)
+				So(string(body), ShouldContainSubstring, "Invalid width")
+			})
+
+			Convey("Doesn't accept crazy wide width", func() {
+				req := httptest.NewRequest("GET", "/documents/somewhere/sample.pdf?page=1&width=300000", nil)
+				recorder := httptest.NewRecorder()
+
+				h.handleImage(recorder, req)
+
+				body, err := ioutil.ReadAll(recorder.Result().Body)
+				So(err, ShouldBeNil)
+				So(recorder.Result().StatusCode, ShouldEqual, 400)
+				So(string(body), ShouldContainSubstring, "Invalid width")
 			})
 		})
 
@@ -178,7 +207,7 @@ func Test_EndToEnd(t *testing.T) {
 				So(downloadCount, ShouldEqual, 1)
 			})
 
-			Convey("Handles a jpegs", func() {
+			Convey("Handles a jpeg", func() {
 				req := httptest.NewRequest("GET", "/documents/somewhere/sample.pdf?page=1&width=1024&quality=75&imageType=image/jpeg", nil)
 
 				h.handleImage(recorder, req)
@@ -190,7 +219,7 @@ func Test_EndToEnd(t *testing.T) {
 				So(recorder.Result().Header["Content-Type"][0], ShouldEqual, "image/jpeg")
 			})
 
-			Convey("Handles a pngs", func() {
+			Convey("Handles a png", func() {
 				req := httptest.NewRequest("GET", "/documents/somewhere/sample.pdf?page=1&width=1024&quality=75&imageType=image/png", nil)
 
 				h.handleImage(recorder, req)
@@ -203,7 +232,7 @@ func Test_EndToEnd(t *testing.T) {
 			})
 
 			Convey("Handles a bunch of options", func() {
-				req := httptest.NewRequest("GET", "/documents/somewhere/sample.pdf?page=1&width=1024&quality=75", nil)
+				req := httptest.NewRequest("GET", "/documents/somewhere/sample.pdf?page=1&scale=1.5&quality=75", nil)
 
 				h.handleImage(recorder, req)
 

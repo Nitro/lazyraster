@@ -67,16 +67,20 @@ func imageTypeForRequest(r *http.Request) string {
 }
 
 func widthForRequest(r *http.Request) (int64, error) {
-	var width int64
+	var width uint64
 	var err error
 	if r.FormValue("width") != "" {
-		width, err = strconv.ParseInt(r.FormValue("width"), 10, 32)
-		if err != nil || width < 0 || width > ImageMaxWidth {
+		width, err = strconv.ParseUint(r.FormValue("width"), 10, 32)
+		if err != nil {
+			return 0, fmt.Errorf("Invalid width!")
+		}
+
+		if width > ImageMaxWidth {
 			return 0, fmt.Errorf("Invalid width! Limit is %d", ImageMaxWidth)
 		}
 	}
 
-	return width, nil
+	return int64(width), nil
 }
 
 func scaleForRequest(r *http.Request) (float64, error) {
@@ -95,15 +99,12 @@ func scaleForRequest(r *http.Request) (float64, error) {
 func pageForRequest(r *http.Request) (int64, error) {
 	// Let's first parse out some URL args and return errors if
 	// we got some bogus stuff.
-	if r.FormValue("page") == "" {
-		return -1, fmt.Errorf("Invalid page!")
-	}
-	page, err := strconv.ParseInt(r.FormValue("page"), 10, 32)
-	if err != nil || page < 1 {
+	page, err := strconv.ParseUint(r.FormValue("page"), 10, 32)
+	if err != nil {
 		return -1, fmt.Errorf("Invalid page!")
 	}
 
-	return page, nil
+	return int64(page), nil
 }
 
 
