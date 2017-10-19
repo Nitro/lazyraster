@@ -370,6 +370,18 @@ func (h *RasterHttpServer) handleShutdown(w http.ResponseWriter, r *http.Request
 
 }
 
+// configureServer sets up an http.Server with Read and Write timeouts, and
+// a sane header byte length.
+func configureServer(config *Config, mux http.Handler) *http.Server {
+	return &http.Server{
+		Addr:           fmt.Sprintf(":%d", config.HttpPort),
+		Handler:        mux,
+		ReadTimeout:    10 * time.Second,
+		WriteTimeout:   15 * time.Second,
+		MaxHeaderBytes: 1 << 20, // 1 KB
+	}
+}
+
 func serveHttp(config *Config, cache *filecache.FileCache, ring *ringman.MemberlistRing,
 	rasterCache *RasterCache, urlSecret string, agent *gorelic.Agent) error {
 
@@ -408,16 +420,17 @@ func serveHttp(config *Config, cache *filecache.FileCache, ring *ringman.Memberl
 	// ------------------------------------------------------------------------
 	// Route definitions
 	// ------------------------------------------------------------------------
-	http.HandleFunc("/favicon.ico", http.NotFound) // Browsers look for this
-	http.Handle("/hashring/", http.StripPrefix("/hashring", ring.HttpMux()))
-	http.HandleFunc("/health", handle(h.handleHealth))
-	http.HandleFunc("/rastercache/purge", handle(h.handleClearRasterCache))
-	http.HandleFunc("/shutdown", handle(h.handleShutdown))
-	http.Handle("/documents/", handlers.LoggingHandler(os.Stdout, docHandler))
+	mux := http.NewServeMux()
+	mux.HandleFunc("/favicon.ico", http.NotFound) // Browsers look for this
+	mux.Handle("/hashring/", http.StripPrefix("/hashring", ring.HttpMux()))
+	mux.HandleFunc("/health", handle(h.handleHealth))
+	mux.HandleFunc("/rastercache/purge", handle(h.handleClearRasterCache))
+	mux.HandleFunc("/shutdown", handle(h.handleShutdown))
+	mux.Handle("/documents/", handlers.LoggingHandler(os.Stdout, docHandler))
 	// ------------------------------------------------------------------------
-	err := http.ListenAndServe(
-		fmt.Sprintf(":%d", config.HttpPort), http.DefaultServeMux,
-	)
+
+	server := configureServer(config, mux)
+	err := server.ListenAndServe()
 
 	if err != nil {
 		return errors.New("Unable to serve Http: " + err.Error())
