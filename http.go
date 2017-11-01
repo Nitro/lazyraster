@@ -345,7 +345,7 @@ func (h *RasterHttpServer) handleImage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", rParams.ImageType)
-	w.Header().Set("Cache-Control", "max-age=3600")
+	w.Header().Set("Cache-Control", fmt.Sprintf("max-age=%d", int64(SigningBucketSize) / 1e9))
 
 	if rParams.ImageType == "image/jpeg" {
 		err = jpeg.Encode(w, image, &jpeg.Options{Quality: rParams.ImageQuality})
