@@ -34,6 +34,20 @@ var (
 	shutdownMutex sync.Mutex
 )
 
+// A RasterParams stores all the parameters from the web request that
+// are germaine to a raster operation.
+type RasterParams struct {
+	Page         int
+	Width        int
+	Scale        float64
+	ImageType    string
+	ImageQuality int
+	Token        string
+	Timestamp    time.Time
+	Filename     string
+	StoragePath  string
+}
+
 // imageQualityForRequest parses out the value for the imageQuality parameter
 func imageQualityForRequest(r *http.Request) int {
 	imageQuality := 100
@@ -69,7 +83,7 @@ func imageTypeForRequest(r *http.Request) string {
 }
 
 // widthForRequest parses out the value for the width parameter
-func widthForRequest(r *http.Request) (int64, error) {
+func widthForRequest(r *http.Request) (int, error) {
 	var width uint64
 	var err error
 	if r.FormValue("width") != "" {
@@ -83,7 +97,7 @@ func widthForRequest(r *http.Request) (int64, error) {
 		}
 	}
 
-	return int64(width), nil
+	return int(width), nil
 }
 
 // scaleForRequest parses outt he value from the scale parameter
@@ -101,7 +115,7 @@ func scaleForRequest(r *http.Request) (float64, error) {
 }
 
 // pageForRequest parses out the value of the page parameter
-func pageForRequest(r *http.Request) (int64, error) {
+func pageForRequest(r *http.Request) (int, error) {
 	// Let's first parse out some URL args and return errors if
 	// we got some bogus stuff.
 	page, err := strconv.ParseUint(r.FormValue("page"), 10, 32)
@@ -109,7 +123,7 @@ func pageForRequest(r *http.Request) (int64, error) {
 		return -1, fmt.Errorf("Invalid page!")
 	}
 
-	return int64(page), nil
+	return int(page), nil
 }
 
 // timestampForRequest parses out the Unix timestamp from the newerThan parameter
@@ -192,6 +206,42 @@ func urlToFilename(url string) string {
 	return strings.Join(pathParts[base:], "/")
 }
 
+func (h *RasterHttpServer) processParams(r *http.Request) (*RasterParams, int, error) {
+	var rParams RasterParams
+	var err error
+
+	// Parse out and handle some HTTP parameters
+	rParams.Page, err = pageForRequest(r)
+	if err != nil {
+		return nil, 400, err
+	}
+
+	rParams.ImageQuality = imageQualityForRequest(r)
+
+	rParams.Width, err = widthForRequest(r)
+	if err != nil {
+		return nil, 400, err
+	}
+
+	rParams.ImageType = imageTypeForRequest(r)
+
+	rParams.Scale, err = scaleForRequest(r)
+	if err != nil {
+		return nil, 400, err
+	}
+
+	// Clean up the URL path into a local filename.
+	rParams.Filename = urlToFilename(r.URL.Path)
+	if rParams.Filename == "" || rParams.Filename == "/" {
+		return nil, 404, err
+	}
+
+	rParams.StoragePath = h.cache.GetFileName(rParams.Filename)
+	rParams.Timestamp = timestampForRequest(r)
+
+	return &rParams, 0, nil
+}
+
 // handleImage is an HTTP handler that responds to requests for pages
 func (h *RasterHttpServer) handleImage(w http.ResponseWriter, r *http.Request) {
 
@@ -214,51 +264,41 @@ func (h *RasterHttpServer) handleImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Parse out and handle some HTTP parameters
-	page, err := pageForRequest(r)
+	// Process all the incoming parameters into a RasterParams struct
+	rParams, status, err := h.processParams(r)
 	if err != nil {
-		http.Error(w, err.Error(), 400)
+		http.Error(w, err.Error(), status)
 		return
 	}
-	imageQuality := imageQualityForRequest(r)
-	width, err := widthForRequest(r)
-	if err != nil {
-		http.Error(w, err.Error(), 400)
-		return
-	}
-	imageType := imageTypeForRequest(r)
-	scale, err := scaleForRequest(r)
-	if err != nil {
-		http.Error(w, err.Error(), 400)
-		return
-	}
-
-	// Clean up the URL path into a local filename.
-	filename := urlToFilename(r.URL.Path)
-	if filename == "" || filename == "/" {
-		http.Error(w, "Invalid filename!", 404)
-		return
-	}
-
-	storagePath := h.cache.GetFileName(filename)
 
 	// Prevent the node from caching any new documents if it has been marked as offline
-	if h.ring != nil && !h.ring.Manager.Ping() && !h.cache.Contains(filename) {
+	if h.ring != nil && !h.ring.Manager.Ping() && !h.cache.Contains(rParams.Filename) {
 		http.Error(w, "Node is offline", 503)
 		return
 	}
 
+	// Get notified when the socket closes
+	socketClosed := false
+	go func() {
+		cn, ok := w.(http.CloseNotifier)
+		if !ok {
+			// We don't support that interface with this ResponseWriter
+			return
+		}
+		<-cn.CloseNotify()
+		socketClosed = true
+	}()
+
 	// Try to get the file from the cache and/or backing store.
 	// NOTE: this can block for a long time while we download a file
 	// from the backing store.
-	timestamp := timestampForRequest(r)
-	if time.Unix(0, 0).Before(timestamp) { // Cache busting mechanism for forced reload
-		if !h.cache.FetchNewerThan(filename, timestamp) {
+	if time.Unix(0, 0).Before(rParams.Timestamp) { // Cache busting mechanism for forced reload
+		if !h.cache.FetchNewerThan(rParams.Filename, rParams.Timestamp) {
 			http.NotFound(w, r)
 			return
 		}
 	} else {
-		if !h.cache.Fetch(filename) {
+		if !h.cache.Fetch(rParams.Filename) {
 			http.NotFound(w, r)
 			return
 		}
@@ -266,22 +306,27 @@ func (h *RasterHttpServer) handleImage(w http.ResponseWriter, r *http.Request) {
 
 	// Log how long we take to rasterize things
 	defer func(startTime time.Time) {
-		log.Debugf("Raster time %s for %s page %d", time.Since(startTime), r.URL.Path, page)
+		log.Debugf("Raster time %s for %s page %d", time.Since(startTime), r.URL.Path, rParams.Page)
 	}(time.Now())
 	t2 := h.beginTrace("rasterize")
 	defer h.endTrace(t2)
 
 	// Get ahold of a rasterizer for this document, either from the cache,
 	// or newly constructed by the cache.
-	raster, err := h.rasterCache.GetRasterizer(storagePath)
+	raster, err := h.rasterCache.GetRasterizer(rParams.StoragePath)
 	if err != nil {
-		log.Errorf("Unable to get rasterizer for %s: '%s'", storagePath, err)
-		http.Error(w, fmt.Sprintf("Error encountered while processing pdf %s: '%s'", storagePath, err), 500)
+		log.Errorf("Unable to get rasterizer for %s: '%s'", rParams.StoragePath, err)
+		http.Error( w, fmt.Sprintf("Error encountered while processing pdf %s: '%s'", rParams.StoragePath, err), 500)
+		return
+	}
+
+	if socketClosed {
+		log.Infof("Socket closed by client, aborting request for '%s'", r.URL.Path)
 		return
 	}
 
 	// Actually render the page to a bitmap so we can encode to JPEG/PNG
-	image, err := raster.GeneratePage(int(page), int(width), float64(scale))
+	image, err := raster.GeneratePage(rParams.Page, rParams.Width, rParams.Scale)
 	if err != nil {
 		if lazypdf.IsBadPage(err) {
 			http.Error(w, fmt.Sprintf("Page is not part of this pdf: %s", err), 404)
@@ -294,17 +339,22 @@ func (h *RasterHttpServer) handleImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", imageType)
+	if socketClosed {
+		log.Infof("Socket closed by client, aborting request for '%s'", r.URL.Path)
+		return
+	}
+
+	w.Header().Set("Content-Type", rParams.ImageType)
 	w.Header().Set("Cache-Control", "max-age=3600")
 
-	if imageType == "image/jpeg" {
-		err = jpeg.Encode(w, image, &jpeg.Options{Quality: imageQuality})
+	if rParams.ImageType == "image/jpeg" {
+		err = jpeg.Encode(w, image, &jpeg.Options{Quality: rParams.ImageQuality})
 	} else {
 		err = png.Encode(w, image)
 	}
 
 	if err != nil {
-		msg := fmt.Sprintf("Error while encoding image as '%s': %s", imageType, err)
+		msg := fmt.Sprintf("Error while encoding image as '%s': %s", rParams.ImageType, err)
 		log.Errorf(msg)
 		http.Error(w, msg, 500)
 	}
