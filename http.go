@@ -353,7 +353,7 @@ func (h *RasterHttpServer) handleImage(w http.ResponseWriter, r *http.Request) {
 		err = png.Encode(w, image)
 	}
 
-	if err != nil {
+	if err != nil && !strings.Contains(err.Error(), "write: broken pipe") {
 		msg := fmt.Sprintf("Error while encoding image as '%s': %s", rParams.ImageType, err)
 		log.Errorf(msg)
 		http.Error(w, msg, 500)
