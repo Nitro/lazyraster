@@ -139,7 +139,7 @@ func timestampForRequest(r *http.Request) time.Time {
 type RasterHttpServer struct {
 	cache       *filecache.FileCache
 	rasterCache *RasterCache
-	ring        *ringman.MemberlistRing
+	ring        ringman.Ring
 	urlSecret   string
 	agent       *gorelic.Agent
 }
@@ -179,7 +179,7 @@ func (h *RasterHttpServer) isValidSignature(url string, w http.ResponseWriter) b
 func (h *RasterHttpServer) handleClearRasterCache(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
-	if !h.ring.Manager.Ping() {
+	if !h.ring.Manager().Ping() {
 		http.Error(w, "Node is offline", 503)
 		return
 	}
@@ -272,7 +272,7 @@ func (h *RasterHttpServer) handleImage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Prevent the node from caching any new documents if it has been marked as offline
-	if h.ring != nil && !h.ring.Manager.Ping() && !h.cache.Contains(rParams.Filename) {
+	if h.ring != nil && !h.ring.Manager().Ping() && !h.cache.Contains(rParams.Filename) {
 		http.Error(w, "Node is offline", 503)
 		return
 	}
@@ -365,7 +365,7 @@ func (h *RasterHttpServer) handleHealth(w http.ResponseWriter, r *http.Request) 
 	defer r.Body.Close()
 
 	status := "OK"
-	if !h.ring.Manager.Ping() {
+	if !h.ring.Manager().Ping() {
 		status = "Offline"
 	}
 
@@ -387,7 +387,7 @@ func (h *RasterHttpServer) handleHealth(w http.ResponseWriter, r *http.Request) 
 
 	w.Header().Set("Content-Type", "application/json")
 
-	if !h.ring.Manager.Ping() {
+	if !h.ring.Manager().Ping() {
 		w.WriteHeader(503)
 		w.Write(data)
 		return
@@ -405,7 +405,7 @@ func (h *RasterHttpServer) handleShutdown(w http.ResponseWriter, r *http.Request
 	shutdownMutex.Lock()
 	defer shutdownMutex.Unlock()
 
-	if !h.ring.Manager.Ping() {
+	if !h.ring.Manager().Ping() {
 		http.Error(w, "Node is offline", 503)
 		return
 	}
@@ -432,7 +432,7 @@ func configureServer(config *Config, mux http.Handler) *http.Server {
 	}
 }
 
-func serveHttp(config *Config, cache *filecache.FileCache, ring *ringman.MemberlistRing,
+func serveHttp(config *Config, cache *filecache.FileCache, ring ringman.Ring,
 	rasterCache *RasterCache, urlSecret string, agent *gorelic.Agent) error {
 
 	// Protect against garbage configuration

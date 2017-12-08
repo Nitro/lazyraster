@@ -34,8 +34,12 @@ type Config struct {
 	CacheSize               int      `envconfig:"CACHE_SIZE" default:"512"`
 	RedisPort               int      `envconfig:"REDIS_PORT" default:"6379"`
 	ClusterName             string   `envconfig:"CLUSTER_NAME" default:"default"`
+	RingType                string   `envconfig:"RING_TYPE" default:"sidecar"`
 	AdvertiseMemberlistHost string   `envconfig:"ADVERTISE_MEMBERLIST_HOST"`
 	AdvertiseMemberlistPort int      `envconfig:"ADVERTISE_MEMBERLIST_PORT" default:"7946"`
+	SidecarUrl              string   `envconfig:"SIDECAR_URL" default:"http://192.168.168.168:7777/api/state.json"`
+	SidecarServiceName      string   `envconfig:"SIDECAR_SERVICE_NAME" default:"lazyraster"`
+	SidecarServicePort      int64    `envconfig:"SIDECAR_SERVICE_PORT" default:"10110"`
 	UrlSigningSecret        string   `envconfig:"URL_SIGNING_SECRET"`
 	RasterCacheSize         int      `envconfig:"RASTER_CACHE_SIZE" default:"20"`
 	LoggingLevel            string   `envconfig:"LOGGING_LEVEL" default:"info"`
@@ -104,7 +108,7 @@ func configureMesosMappings(config *Config) error {
 
 // Set up some signal handling for kill/term/int and try to exit the
 // cluster and clean out the cache before we exit.
-func handleSignals(fCache *filecache.FileCache, ring *ringman.MemberlistRing) {
+func handleSignals(fCache *filecache.FileCache, ring ringman.Ring) {
 	sigChan := make(chan os.Signal, 1) // Buffered!
 
 	// Grab some signals we want to catch where possible
@@ -160,6 +164,33 @@ func configureNewRelic() *gorelic.Agent {
 	return agent
 }
 
+// configureRing configures a ringman implementation using the right
+// setup based on config.RingType
+func configureRing(config *Config) (ringman.Ring, error) {
+	switch config.RingType {
+	case "memberlist":
+		mlConfig := memberlist.DefaultLANConfig()
+
+		mlConfig.BindPort = MemberlistBindPort
+		mlConfig.AdvertiseAddr = config.AdvertiseMemberlistHost
+		mlConfig.AdvertisePort = config.AdvertiseMemberlistPort
+		if config.AdvertiseMemberlistHost != "" {
+			mlConfig.Name = config.AdvertiseMemberlistHost
+		}
+
+		return ringman.NewMemberlistRing(
+			mlConfig,
+			config.ClusterSeeds, strconv.Itoa(config.AdvertiseHttpPort), config.ClusterName,
+		)
+	case "sidecar":
+		return ringman.NewSidecarRing(
+			config.SidecarUrl, config.SidecarServiceName, config.SidecarServicePort,
+		)
+	default:
+		return nil, fmt.Errorf("Unknown RingType '%s'", config.RingType)
+	}
+}
+
 func main() {
 	var config Config
 
@@ -180,20 +211,10 @@ func main() {
 	// New Relic
 	agent := configureNewRelic()
 
-	mlConfig := memberlist.DefaultLANConfig()
-
-	mlConfig.BindPort = MemberlistBindPort
-	mlConfig.AdvertiseAddr = config.AdvertiseMemberlistHost
-	mlConfig.AdvertisePort = config.AdvertiseMemberlistPort
-	if config.AdvertiseMemberlistHost != "" {
-		mlConfig.Name = config.AdvertiseMemberlistHost
-	}
-	ring, err := ringman.NewMemberlistRing(
-		mlConfig,
-		config.ClusterSeeds, strconv.Itoa(config.AdvertiseHttpPort), config.ClusterName,
-	)
+	var ring ringman.Ring
+	ring, err = configureRing(&config)
 	if err != nil {
-		log.Fatalf("Unable to establish memberlist ring: %s", err)
+		log.Fatalf("Unable to establish hashring ring ('%s': %s", config.RingType, err)
 	}
 
 	// Set up a rasterizer cache (in memory, keeps open documents ready to go)
@@ -222,7 +243,7 @@ func main() {
 
 	// Run the Redis protocol server and wire it up to our hash ring
 	go func() {
-		err := serveRedis(fmt.Sprintf(":%d", config.RedisPort), ring.Manager, agent)
+		err := serveRedis(fmt.Sprintf(":%d", config.RedisPort), ring.Manager(), agent)
 		if err != nil {
 			log.Fatalf("Error starting Redis protocol server: %s", err)
 		}
