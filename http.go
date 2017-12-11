@@ -477,6 +477,10 @@ func serveHttp(config *Config, cache *filecache.FileCache, ring ringman.Ring,
 	mux.HandleFunc("/rastercache/purge", handle(h.handleClearRasterCache))
 	mux.HandleFunc("/shutdown", handle(h.handleShutdown))
 	mux.Handle("/documents/", handlers.LoggingHandler(os.Stdout, docHandler))
+	if config.RingType == "sidecar" {
+		log.Info("Attaching Sidecar http handlers")
+		mux.Handle("/sidecar/update", http.StripPrefix("/sidecar", ring.HttpMux()))
+	}
 	// ------------------------------------------------------------------------
 
 	server := configureServer(config, mux)
