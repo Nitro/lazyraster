@@ -51,6 +51,9 @@ variables. These include the following:
  * `RASTER_ADVERTISE_MEMBERLIST_PORT`: The port advertised by Memberlist.
  * `RASTER_URL_SIGNING_SECRET`: A secret to use when validating signed URLs (optional).
  * `RASTER_LOGGING_LEVEL`: The cut off level for log messages. (`debug`, `info`, `warn`, `error`)
+ * `RASTER_RING_TYPE`: Use `sidecar` or `memberlist` backing for hash ring? (default: `sidecar`)
+ * `RASTER_SIDECAR_SERVICE_NAME`: The name to lookup in Sidecar when using Sidecar backing.
+ * `RASTER_SIDECAR_SERVICE_Port`: The port to lookup in Sidecar when using Sidecar backing.
 
 In addition, the AWS APIs will require authorization in the form of the standard
 AWS environment variables:
