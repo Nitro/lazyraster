@@ -233,7 +233,7 @@ func (h *RasterHttpServer) processParams(r *http.Request) (*RasterParams, int, e
 	// Clean up the URL path into a local filename.
 	rParams.Filename = urlToFilename(r.URL.Path)
 	if rParams.Filename == "" || rParams.Filename == "/" {
-		return nil, 404, err
+		return nil, 404, errors.New("Invalid URL path")
 	}
 
 	rParams.StoragePath = h.cache.GetFileName(rParams.Filename)
@@ -316,7 +316,7 @@ func (h *RasterHttpServer) handleImage(w http.ResponseWriter, r *http.Request) {
 	raster, err := h.rasterCache.GetRasterizer(rParams.StoragePath)
 	if err != nil {
 		log.Errorf("Unable to get rasterizer for %s: '%s'", rParams.StoragePath, err)
-		http.Error( w, fmt.Sprintf("Error encountered while processing pdf %s: '%s'", rParams.StoragePath, err), 500)
+		http.Error(w, fmt.Sprintf("Error encountered while processing pdf %s: '%s'", rParams.StoragePath, err), 500)
 		return
 	}
 
@@ -345,7 +345,7 @@ func (h *RasterHttpServer) handleImage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", rParams.ImageType)
-	w.Header().Set("Cache-Control", fmt.Sprintf("max-age=%d", int64(SigningBucketSize) / 1e9))
+	w.Header().Set("Cache-Control", fmt.Sprintf("max-age=%d", int64(SigningBucketSize)/1e9))
 
 	if rParams.ImageType == "image/jpeg" {
 		err = jpeg.Encode(w, image, &jpeg.Options{Quality: rParams.ImageQuality})
