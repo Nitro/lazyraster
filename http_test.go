@@ -188,6 +188,18 @@ func Test_EndToEnd(t *testing.T) {
 				So(recorder.Result().StatusCode, ShouldEqual, 400)
 				So(string(body), ShouldContainSubstring, "Invalid width")
 			})
+
+			Convey("Doesn't accept URL paths without a bucket", func() {
+				req := httptest.NewRequest("GET", "/documents/sample.pdf?page=1", nil)
+				recorder := httptest.NewRecorder()
+
+				h.handleImage(recorder, req)
+
+				body, err := ioutil.ReadAll(recorder.Result().Body)
+				So(err, ShouldBeNil)
+				So(recorder.Result().StatusCode, ShouldEqual, 404)
+				So(string(body), ShouldContainSubstring, "Invalid URL path")
+			})
 		})
 
 		Convey("When everything is working", func() {
