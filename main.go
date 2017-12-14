@@ -225,7 +225,7 @@ func main() {
 
 	// Set up an S3-backed filecache to underly the rasterCache
 	fCache, err := filecache.NewS3Cache(
-		config.CacheSize, config.BaseDir, config.S3Bucket, config.AwsRegion,
+		config.CacheSize, config.BaseDir, config.S3Bucket, config.AwsRegion, ServerWriteTimeout,
 	)
 	if err != nil {
 		log.Fatalf("Unable to create LRU cache: %s", err)

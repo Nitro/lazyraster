@@ -17,7 +17,7 @@
   branch = "master"
   name = "github.com/Nitro/filecache"
   packages = ["."]
-  revision = "df38fb34c79f0d5a7c656531ac3446d81af434cb"
+  revision = "bdaae1f3324d8609c00d996db78c5db416e0c16a"
 
 [[projects]]
   branch = "master"

@@ -25,9 +25,11 @@ import (
 
 const (
 	// ImageMaxWidth is the maximum supported image width
-	ImageMaxWidth     = 4096
-	ImageMaxScale     = 3.0
-	SigningBucketSize = 8 * time.Hour
+	ImageMaxWidth      = 4096
+	ImageMaxScale      = 3.0
+	SigningBucketSize  = 8 * time.Hour
+	ServerReadTimeout  = 10 * time.Second
+	ServerWriteTimeout = 15 * time.Second
 )
 
 var (
@@ -316,7 +318,7 @@ func (h *RasterHttpServer) handleImage(w http.ResponseWriter, r *http.Request) {
 	raster, err := h.rasterCache.GetRasterizer(rParams.StoragePath)
 	if err != nil {
 		log.Errorf("Unable to get rasterizer for %s: '%s'", rParams.StoragePath, err)
-		http.Error( w, fmt.Sprintf("Error encountered while processing pdf %s: '%s'", rParams.StoragePath, err), 500)
+		http.Error(w, fmt.Sprintf("Error encountered while processing pdf %s: '%s'", rParams.StoragePath, err), 500)
 		return
 	}
 
@@ -345,7 +347,7 @@ func (h *RasterHttpServer) handleImage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", rParams.ImageType)
-	w.Header().Set("Cache-Control", fmt.Sprintf("max-age=%d", int64(SigningBucketSize) / 1e9))
+	w.Header().Set("Cache-Control", fmt.Sprintf("max-age=%d", int64(SigningBucketSize)/1e9))
 
 	if rParams.ImageType == "image/jpeg" {
 		err = jpeg.Encode(w, image, &jpeg.Options{Quality: rParams.ImageQuality})
@@ -426,8 +428,8 @@ func configureServer(config *Config, mux http.Handler) *http.Server {
 	return &http.Server{
 		Addr:           fmt.Sprintf(":%d", config.HttpPort),
 		Handler:        mux,
-		ReadTimeout:    10 * time.Second,
-		WriteTimeout:   15 * time.Second,
+		ReadTimeout:    ServerReadTimeout,
+		WriteTimeout:   ServerWriteTimeout,
 		MaxHeaderBytes: 1 << 20, // 1 KB
 	}
 }
