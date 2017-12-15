@@ -25,9 +25,11 @@ import (
 
 const (
 	// ImageMaxWidth is the maximum supported image width
-	ImageMaxWidth     = 4096
-	ImageMaxScale     = 3.0
-	SigningBucketSize = 8 * time.Hour
+	ImageMaxWidth      = 4096
+	ImageMaxScale      = 3.0
+	SigningBucketSize  = 8 * time.Hour
+	ServerReadTimeout  = 10 * time.Second
+	ServerWriteTimeout = 15 * time.Second
 )
 
 var (
@@ -426,8 +428,8 @@ func configureServer(config *Config, mux http.Handler) *http.Server {
 	return &http.Server{
 		Addr:           fmt.Sprintf(":%d", config.HttpPort),
 		Handler:        mux,
-		ReadTimeout:    10 * time.Second,
-		WriteTimeout:   15 * time.Second,
+		ReadTimeout:    ServerReadTimeout,
+		WriteTimeout:   ServerWriteTimeout,
 		MaxHeaderBytes: 1 << 20, // 1 KB
 	}
 }

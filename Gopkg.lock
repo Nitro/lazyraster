@@ -17,7 +17,7 @@
   branch = "master"
   name = "github.com/Nitro/filecache"
   packages = ["."]
-  revision = "f420f7b01acedfa2400597796be8efc13314a3d6"
+  revision = "bdaae1f3324d8609c00d996db78c5db416e0c16a"
 
 [[projects]]
   branch = "master"
@@ -301,6 +301,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "7ee5c1a8244cdbcfff8e86ab6aa03950c7ccfd29612bd14c23eb6345d5a120ea"
+  inputs-digest = "9ddda61123ba861a19b40237c192e2f004ced01bffec4789c2e2924ece835669"
   solver-name = "gps-cdcl"
   solver-version = 1

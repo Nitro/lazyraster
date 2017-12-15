@@ -37,6 +37,10 @@ ignored = ["github.com/Nitro/lazypdf"]
   name = "github.com/Nitro/ringman"
 
 [[constraint]]
+  branch = "master"
+  name = "github.com/Nitro/filecache"
+
+[[constraint]]
   name = "github.com/sirupsen/logrus"
   version = "0.10.0-16-gcd7d1bb"
 
