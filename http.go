@@ -196,7 +196,8 @@ func (h *RasterHttpServer) handleClearRasterCache(w http.ResponseWriter, r *http
 // the filename on the backing store, not the cached filename locally).
 func urlToFilename(url string) string {
 	pathParts := strings.Split(strings.TrimPrefix(url, "/documents/"), "/")
-	if len(pathParts) < 1 {
+	// We need at least a bucket and filename
+	if len(pathParts) < 2 {
 		return ""
 	}
 
