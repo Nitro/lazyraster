@@ -177,7 +177,7 @@ func (h *RasterHttpServer) isValidSignature(url string, w http.ResponseWriter) b
 	return true
 }
 
-// Allows us to manually clear out the raster cache
+// handleClearRasterCache allows us to manually clear out the raster cache
 func (h *RasterHttpServer) handleClearRasterCache(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
@@ -195,17 +195,13 @@ func (h *RasterHttpServer) handleClearRasterCache(w http.ResponseWriter, r *http
 // urlToFilename converts the incoming URL path into a cached filename (this is
 // the filename on the backing store, not the cached filename locally).
 func urlToFilename(url string) string {
-	pathParts := strings.Split(strings.TrimLeft(url, "/documents"), "/")
-	if len(pathParts) < 1 {
+	pathParts := strings.Split(strings.TrimPrefix(url, "/documents/"), "/")
+	// We need at least a bucket and filename
+	if len(pathParts) < 2 {
 		return ""
 	}
 
-	base := 0
-
-	// XXX Temporary! Strip bucket name from URLs
-	base++
-
-	return strings.Join(pathParts[base:], "/")
+	return strings.Join(pathParts, "/")
 }
 
 func (h *RasterHttpServer) processParams(r *http.Request) (*RasterParams, int, error) {
@@ -313,7 +309,7 @@ func (h *RasterHttpServer) handleImage(w http.ResponseWriter, r *http.Request) {
 	t2 := h.beginTrace("rasterize")
 	defer h.endTrace(t2)
 
-	// Get ahold of a rasterizer for this document, either from the cache,
+	// Get ahold of a rasterizer for this document either from the cache
 	// or newly constructed by the cache.
 	raster, err := h.rasterCache.GetRasterizer(rParams.StoragePath)
 	if err != nil {

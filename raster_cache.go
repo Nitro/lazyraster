@@ -9,8 +9,8 @@ import (
 	"github.com/hashicorp/golang-lru"
 )
 
-// #cgo CFLAGS: -I../lazypdf -I../lazypdf/mupdf-1.11-source/include -I../lazypdf/mupdf-1.11-source/include/mupdf -I../lazypdf/mupdf-1.11-source/thirdparty/openjpeg -I../lazypdf/mupdf-1.11-source/thirdparty/jbig2dec -I../lazypdf/mupdf-1.11-source/thirdparty/zlib -I../lazypdf/mupdf-1.11-source/thirdparty/jpeg -I../lazypdf/mupdf-1.11-source/thirdparty/freetype
-// #cgo LDFLAGS: -L../lazypdf/mupdf-1.11-source/build/release -lmupdf -lmupdfthird -lm -ljbig2dec -lz -lfreetype -ljpeg -lcrypto -lpthread
+// #cgo CFLAGS: -I../lazypdf -I../lazypdf/mupdf-1.12.0-source/include -I../lazypdf/mupdf-1.12.0-source/include/mupdf -I../lazypdf/mupdf-1.12.0-source/thirdparty/openjpeg -I../lazypdf/mupdf-1.12.0-source/thirdparty/jbig2dec -I../lazypdf/mupdf-1.12.0-source/thirdparty/zlib -I../lazypdf/mupdf-1.12.0-source/thirdparty/jpeg -I../lazypdf/mupdf-1.12.0-source/thirdparty/freetype
+// #cgo LDFLAGS: -L../lazypdf/mupdf-1.12.0-source/build/release -lmupdf -lmupdfthird -lm -ljbig2dec -lz -lfreetype -ljpeg -lcrypto -lpthread
 // #include <faster_raster.h>
 import "C"
 

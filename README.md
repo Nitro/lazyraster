@@ -73,7 +73,21 @@ with:
  * `SERVICE_NAME`: the name of the application in New Relic (e.g. 'foo-service')
  * `ENVIRONMENT_NAME`: appended to `SERVICE_NAME` (e.g. 'foo-service-prod')
 
+Local Development
+-----------------
+
+If you are running this locally for development purposes, you will probably
+want to use the following options to get started:
+
+```bash
+$ RASTER_RING_TYPE=memberlist RASTER_LOGGING_LEVEL=debug ./lazyraster
+```
+
+This will use the Memberlist clustering library and not require an external
+Sidecar service discovery system. It will also enable debug logging level which
+can help in understanding where things went wrong.
+
 Copyright
 ---------
 
-Copyright (c) 2017 Nitro Software.
+Copyright (c) 2017-2018 Nitro Software.
