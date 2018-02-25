@@ -1,13 +1,16 @@
-FROM ubuntu:14.04
+FROM ubuntu:16.04
 
-RUN apt-get update && apt-get install -y \
-                                curl \
-                                libjpeg62 \
-                                zlib1g \
-                                libjbig2dec0 \
-                                libfreetype6 \
-                                libpng12-0 \
-                                ca-certificates
+RUN echo "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true" | debconf-set-selections && \
+	apt-get update && \
+	apt-get install -y \
+		curl \
+		libjpeg62 \
+		zlib1g \
+		libjbig2dec0 \
+		libfreetype6 \
+		libpng12-0 \
+		ca-certificates \
+		ttf-mscorefonts-installer
 
 # Install S6 from static bins
 RUN cd / && curl -L https://github.com/just-containers/skaware/releases/download/v1.17.1/s6-eeb0f9098450dbe470fc9b60627d15df62b04239-linux-amd64-bin.tar.gz | tar -xvzf -
