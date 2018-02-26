@@ -13,7 +13,7 @@ var (
 func Test_NewRasterCache(t *testing.T) {
 	Convey("NewRasterCache()", t, func() {
 		Convey("configures things properly", func() {
-			cache, err := NewRasterCache(5)
+			cache, err := NewRasterCache(5, "")
 
 			So(err, ShouldBeNil)
 			So(cache, ShouldNotBeNil)
@@ -35,7 +35,7 @@ func Test_NewDefaultRasterCache(t *testing.T) {
 
 func Test_GetRasterizer(t *testing.T) {
 	Convey("GetRasterizer()", t, func() {
-		cache, _ := NewRasterCache(2)
+		cache, _ := NewRasterCache(2, "")
 
 		Convey("creates and stores a rasterizer", func() {
 			raster, err := cache.GetRasterizer(fixture)
@@ -64,7 +64,7 @@ func Test_GetRasterizer(t *testing.T) {
 func Test_Remove(t *testing.T) {
 	Convey("Remove()", t, func() {
 		Convey("removes a file", func() {
-			cache, _ := NewRasterCache(1)
+			cache, _ := NewRasterCache(1, "")
 
 			raster, _ := cache.GetRasterizer(fixture)
 			So(raster, ShouldNotBeNil)
@@ -80,7 +80,7 @@ func Test_Remove(t *testing.T) {
 
 func Test_onEvicted(t *testing.T) {
 	Convey("Handling eviction from the cache", t, func() {
-		cache, err := NewRasterCache(2)
+		cache, err := NewRasterCache(2, "")
 		raster, _ := cache.GetRasterizer(fixture)
 
 		So(err, ShouldBeNil)

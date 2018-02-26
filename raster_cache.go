@@ -2,11 +2,14 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
+	"os"
 	"sync"
 
 	"github.com/Nitro/lazypdf"
-	log "github.com/sirupsen/logrus"
 	"github.com/hashicorp/golang-lru"
+	log "github.com/sirupsen/logrus"
+	yaml "gopkg.in/yaml.v2"
 )
 
 // #cgo CFLAGS: -I../lazypdf -I../lazypdf/mupdf-1.12.0-source/include -I../lazypdf/mupdf-1.12.0-source/include/mupdf -I../lazypdf/mupdf-1.12.0-source/thirdparty/openjpeg -I../lazypdf/mupdf-1.12.0-source/thirdparty/jbig2dec -I../lazypdf/mupdf-1.12.0-source/thirdparty/zlib -I../lazypdf/mupdf-1.12.0-source/thirdparty/jpeg -I../lazypdf/mupdf-1.12.0-source/thirdparty/freetype
@@ -15,7 +18,7 @@ import (
 import "C"
 
 const (
-	// DefaultRasterCacheSize is the default number of cahced rasterizers for open documents
+	// DefaultRasterCacheSize is the default number of cached rasterizers for open documents
 	DefaultRasterCacheSize = 20
 )
 
@@ -27,16 +30,62 @@ type RasterCache struct {
 	mostRecentlyStopped *lazypdf.Rasterizer
 }
 
+func setSystemFonts(systemFontsYaml string) error {
+	if systemFontsYaml == "" {
+		return nil
+	}
+
+	yamlFile, err := ioutil.ReadFile(systemFontsYaml)
+	if err != nil {
+		return fmt.Errorf("failed to read system fonts yaml '%s': %s", systemFontsYaml, err)
+	}
+
+	var systemFontsData map[string]struct {
+		Location string
+		Fonts    map[string]string
+	}
+	err = yaml.Unmarshal(yamlFile, &systemFontsData)
+	if err != nil {
+		return fmt.Errorf("failed to unmarshal system fonts yaml '%s': %s", systemFontsYaml, err)
+	}
+
+	systemFonts := make(lazypdf.FontPaths)
+	for _, fontPackage := range systemFontsData {
+		for name, file := range fontPackage.Fonts {
+			filePath := fontPackage.Location + "/" + file
+			if _, err := os.Stat(filePath); err != nil {
+				log.Warnf("Could not find font file %s", filePath)
+				continue
+			}
+
+			systemFonts[name] = filePath
+		}
+	}
+
+	if len(systemFonts) == 0 {
+		return fmt.Errorf("could not find any of the font files specified in the system fonts yaml '%s'", systemFontsYaml)
+	}
+
+	lazypdf.SetSystemFonts(systemFonts)
+
+	return nil
+}
+
 // NewDefaultRasterCache hands back a cache with the default configuration.
 func NewDefaultRasterCache() (*RasterCache, error) {
-	return NewRasterCache(DefaultRasterCacheSize)
+	return NewRasterCache(DefaultRasterCacheSize, "")
 }
 
 // NewRasterCache creates a new cache of the defined size.
-func NewRasterCache(size int) (*RasterCache, error) {
+func NewRasterCache(size int, systemFontsYaml string) (*RasterCache, error) {
 	rasterCache := &RasterCache{}
 
 	cache, err := lru.NewWithEvict(size, rasterCache.onEvicted)
+	if err != nil {
+		return nil, err
+	}
+
+	err = setSystemFonts(systemFontsYaml)
 	if err != nil {
 		return nil, err
 	}

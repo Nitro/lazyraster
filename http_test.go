@@ -89,7 +89,7 @@ func Test_EndToEnd(t *testing.T) {
 		cache, _ := filecache.NewS3Cache(10, os.TempDir(), "aragorn-foo", "gondor-north-1", 1*time.Millisecond)
 		cache.DownloadFunc = mockDownloader
 
-		rasterCache, _ := NewRasterCache(1)
+		rasterCache, _ := NewRasterCache(1, "")
 
 		h := &RasterHttpServer{
 			cache:       cache,

@@ -43,6 +43,7 @@ type Config struct {
 	UrlSigningSecret        string   `envconfig:"URL_SIGNING_SECRET"`
 	RasterCacheSize         int      `envconfig:"RASTER_CACHE_SIZE" default:"20"`
 	LoggingLevel            string   `envconfig:"LOGGING_LEVEL" default:"info"`
+	SystemFonts             string   `envconfig:"SYSTEM_FONTS"`
 }
 
 func configureLoggingLevel(config *Config) {
@@ -218,7 +219,7 @@ func main() {
 	}
 
 	// Set up a rasterizer cache (in memory, keeps open documents ready to go)
-	rasterCache, err := NewRasterCache(config.RasterCacheSize)
+	rasterCache, err := NewRasterCache(config.RasterCacheSize, config.SystemFonts)
 	if err != nil {
 		log.Fatalf("Unable to initialize the rasterizer cache: %s", err)
 	}

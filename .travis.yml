@@ -12,7 +12,7 @@ before_install:
   - sudo apt-get install -y libjpeg62 zlib1g libjbig2dec0 libjbig2dec0-dev libfreetype6 libpng12-0 ca-certificates
   # Temporary hack until we adjunst lazypdf to pull in its dependencies during build
   - go get github.com/Sirupsen/logrus && go get github.com/smartystreets/goconvey
-  - go get -d github.com/Nitro/lazypdf && (cd ${GOPATH}/src/github.com/Nitro/lazypdf && ./build)
+  - mkdir -p ${GOPATH}/src/github.com/Nitro && (cd ${GOPATH}/src/github.com/Nitro && git clone -b mihaitodor/use-system-fonts https://github.com/Nitro/lazypdf.git) && (cd ${GOPATH}/src/github.com/Nitro/lazypdf && ./build)
 
 install:
   - go get github.com/golang/dep/cmd/dep && dep ensure

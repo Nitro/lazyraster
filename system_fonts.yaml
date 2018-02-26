@@ -1,0 +1,33 @@
+ttf-mscorefonts-installer:
+  location: /usr/share/fonts/truetype/msttcorefonts
+  fonts:
+    AndaleMono:              Andale_Mono.ttf
+    ArialBlack:              Arial_Black.ttf
+    ArialBoldItalic:         Arial_Bold_Italic.ttf
+    ArialBold:               Arial_Bold.ttf
+    ArialItalic:             Arial_Italic.ttf
+    Arial:                   Arial.ttf
+    ComicSansMSBold:         Comic_Sans_MS_Bold.ttf
+    ComicSansMS:             Comic_Sans_MS.ttf
+    CourierNewBoldItalic:    Courier_New_Bold_Italic.ttf
+    CourierNewBold:          Courier_New_Bold.ttf
+    CourierNewItalic:        Courier_New_Italic.ttf
+    CourierNew:              Courier_New.ttf
+    GeorgiaBoldItalic:       Georgia_Bold_Italic.ttf
+    GeorgiaBold:             Georgia_Bold.ttf
+    GeorgiaItalic:           Georgia_Italic.ttf
+    Georgia:                 Georgia.ttf
+    Impact:                  Impact.ttf
+    TimesNewRomanBoldItalic: Times_New_Roman_Bold_Italic.ttf
+    TimesNewRomanBold:       Times_New_Roman_Bold.ttf
+    TimesNewRomanItalic:     Times_New_Roman_Italic.ttf
+    TimesNewRoman:           Times_New_Roman.ttf
+    TrebuchetMSBoldItalic:   Trebuchet_MS_Bold_Italic.ttf
+    TrebuchetMSBold:         Trebuchet_MS_Bold.ttf
+    TrebuchetMSItalic:       Trebuchet_MS_Italic.ttf
+    TrebuchetMS:             Trebuchet_MS.ttf
+    VerdanaBoldItalic:       Verdana_Bold_Italic.ttf
+    VerdanaBold:             Verdana_Bold.ttf
+    Verdana_Italic:          Verdana_Italic.ttf
+    Verdana:                 Verdana.ttf
+    Webdings:                Webdings.ttf
