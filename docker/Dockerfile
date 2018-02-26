@@ -19,6 +19,8 @@ ADD s6 /etc
 
 ADD lazyraster /lazyraster/lazyraster
 
+ADD system_fonts.yaml /lazyraster/system_fonts.yaml
+
 # Mount a host volume to this folder when running the container
 ENV RASTER_BASE_DIR="/lazyraster/cache"
 
