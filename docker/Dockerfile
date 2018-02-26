@@ -1,5 +1,7 @@
 FROM ubuntu:16.04
 
+# ttf-mscorefonts-installer requires apt-transport-https and it needs to be installed separately from it
+# because apt-transport-https has some triggers that are processed at the end of apt-get install
 RUN echo "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true" | debconf-set-selections && \
 	apt-get update && \
 	apt-get install -y \
@@ -10,7 +12,8 @@ RUN echo "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula sele
 		libfreetype6 \
 		libpng12-0 \
 		ca-certificates \
-		ttf-mscorefonts-installer
+		apt-transport-https && \
+	apt-get install -y ttf-mscorefonts-installer
 
 # Install S6 from static bins
 RUN cd / && curl -L https://github.com/just-containers/skaware/releases/download/v1.17.1/s6-eeb0f9098450dbe470fc9b60627d15df62b04239-linux-amd64-bin.tar.gz | tar -xvzf -
