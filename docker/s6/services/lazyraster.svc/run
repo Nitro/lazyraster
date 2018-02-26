@@ -20,7 +20,7 @@ if [ -d "${RASTER_BASE_DIR}" ]; then
 	) &
 fi
 
-export RASTER_SYSTEM_FONTS="system_fonts.yaml"
+export RASTER_SYSTEM_FONTS="/lazyraster/system_fonts.yaml"
 
 echo "Launching Lazyraster service..."
 /lazyraster/lazyraster
