@@ -29,7 +29,6 @@ type Config struct {
 	HttpPort                int      `envconfig:"HTTP_PORT" default:"8000"`
 	AdvertiseHttpPort       int      `envconfig:"ADVERTISE_HTTP_PORT" default:"8000"`
 	AwsRegion               string   `envconfig:"AWS_REGION" default:"us-west-1"`
-	S3Bucket                string   `envconfig:"S3_BUCKET" default:"nitro-junk"`
 	ClusterSeeds            []string `envconfig:"CLUSTER_SEEDS"`
 	CacheSize               int      `envconfig:"CACHE_SIZE" default:"512"`
 	RedisPort               int      `envconfig:"REDIS_PORT" default:"6379"`
@@ -225,7 +224,7 @@ func main() {
 
 	// Set up an S3-backed filecache to underly the rasterCache
 	fCache, err := filecache.NewS3Cache(
-		config.CacheSize, config.BaseDir, config.S3Bucket, config.AwsRegion, ServerWriteTimeout,
+		config.CacheSize, config.BaseDir, config.AwsRegion, ServerWriteTimeout,
 	)
 	if err != nil {
 		log.Fatalf("Unable to create LRU cache: %s", err)
