@@ -30,7 +30,7 @@ script:
 after_success:
   - docker login -u="$DOCKER_USERNAME" -p="$DOCKER_PASSWORD"
   - echo "Building on Go version ${TRAVIS_GO_VERSION} for branch ${TRAVIS_BRANCH}"
-  - if [ "$TRAVIS_BRANCH" == "master" ] && [ "${TRAVIS_GO_VERSION::3}" == "${PRODUCTION_GO_VERSION}" ]; then
+  - if [ "$TRAVIS_BRANCH" == "master" ] && [ "${TRAVIS_GO_VERSION::4}" == "${PRODUCTION_GO_VERSION}" ]; then
       echo "Pushing container gonitro/lazyraster:${TRAVIS_COMMIT::7}" &&
       docker push gonitro/lazyraster:${TRAVIS_COMMIT::7};
     fi
