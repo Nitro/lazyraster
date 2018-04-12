@@ -26,10 +26,6 @@ ignored = ["github.com/Nitro/lazypdf"]
 
 [[constraint]]
   branch = "master"
-  name = "github.com/Nitro/sidecar"
-
-[[constraint]]
-  branch = "master"
   name = "github.com/Nitro/memberlist"
 
 [[constraint]]
@@ -39,10 +35,6 @@ ignored = ["github.com/Nitro/lazypdf"]
 [[constraint]]
   branch = "master"
   name = "github.com/Nitro/filecache"
-
-[[constraint]]
-  name = "github.com/sirupsen/logrus"
-  version = "0.10.0-16-gcd7d1bb"
 
 [[constraint]]
   branch = "v1"
