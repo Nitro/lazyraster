@@ -230,6 +230,16 @@ func main() {
 		log.Fatalf("Unable to create LRU cache: %s", err)
 	}
 
+	// Wrap the S3 download function with Gorelic to report on S3 times
+	if agent != nil {
+		origFunc := fCache.DownloadFunc
+		fCache.DownloadFunc = func(fname string, localPath string) error {
+			t := agent.Tracer.BeginTrace("s3Fetch")
+			defer t.EndTrace()
+			return origFunc(fname, localPath)
+		}
+	}
+
 	// Tie the deletion from file cache to the deletion from the rasterCache
 	fCache.OnEvict = func(hashKey interface{}, filename interface{}) {
 		// We need to make sure we delete a rasterizer if one exists and the file
