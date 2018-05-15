@@ -468,7 +468,7 @@ func serveHttp(config *Config, cache *filecache.FileCache, ring ringman.Ring,
 	// ------------------------------------------------------------------------
 	// Route definitions
 	// ------------------------------------------------------------------------
-	mux := http.NewServeMux()
+	mux := http.DefaultServeMux
 	mux.HandleFunc("/favicon.ico", http.NotFound) // Browsers look for this
 	mux.Handle("/hashring/", http.StripPrefix("/hashring", ring.HttpMux()))
 	mux.HandleFunc("/health", handle(h.handleHealth))
