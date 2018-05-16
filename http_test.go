@@ -88,6 +88,7 @@ func Test_EndToEnd(t *testing.T) {
 
 		cache, _ := filecache.NewS3Cache(10, os.TempDir(), "gondor-north-1", 1*time.Millisecond)
 		cache.DownloadFunc = mockDownloader
+		cache.DefaultExtension = ".pdf"
 
 		rasterCache, _ := NewRasterCache(1)
 
@@ -99,7 +100,7 @@ func Test_EndToEnd(t *testing.T) {
 			agent:       nil,
 		}
 
-		filename := "73/069741a92a2f641eb428ba6d12ccb9af" // cache file for sample.pdf
+		filename := "73/6090c594d41728a7d7ad1e1a4d58cd28.pdf" // cache file for sample.pdf
 
 		Reset(func() {
 			os.Remove(cache.GetFileName("somewhere/sample.pdf"))
@@ -205,6 +206,7 @@ func Test_EndToEnd(t *testing.T) {
 		Convey("When everything is working", func() {
 			os.MkdirAll(filepath.Join(os.TempDir(), filepath.Dir(filename)), 0755)
 			CopyFile(cache.GetFileName("somewhere/sample.pdf"), "fixtures/sample.pdf", 0644)
+			CopyFile(cache.GetFileName("somewhere/sample"), "fixtures/sample.pdf", 0644)
 			recorder := httptest.NewRecorder()
 
 			Convey("Handles a normal request", func() {
@@ -252,6 +254,17 @@ func Test_EndToEnd(t *testing.T) {
 				body, err := ioutil.ReadAll(recorder.Result().Body)
 				So(err, ShouldBeNil)
 				So(len(body), ShouldBeGreaterThan, 1024)
+				So(recorder.Result().StatusCode, ShouldEqual, 200)
+			})
+
+			Convey("Handles a file with no file extension", func() {
+				req := httptest.NewRequest("GET", "/documents/somewhere/sample?page=1&scale=1.5&quality=75", nil)
+
+				h.handleImage(recorder, req)
+
+				body, err := ioutil.ReadAll(recorder.Result().Body)
+				So(err, ShouldBeNil)
+				So(len(body), ShouldBeGreaterThan, 1024) // We really did get an image
 				So(recorder.Result().StatusCode, ShouldEqual, 200)
 			})
 		})
