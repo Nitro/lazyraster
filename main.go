@@ -230,6 +230,9 @@ func main() {
 		log.Fatalf("Unable to create LRU cache: %s", err)
 	}
 
+	// If we get a document from S3 with no extension, assume PDF
+	fCache.DefaultExtension = ".pdf"
+
 	// Wrap the S3 download function with Gorelic to report on S3 times
 	if agent != nil {
 		origFunc := fCache.DownloadFunc
