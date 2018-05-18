@@ -5,12 +5,12 @@ import (
 	"sync"
 
 	"github.com/Nitro/lazypdf"
-	log "github.com/sirupsen/logrus"
 	"github.com/hashicorp/golang-lru"
+	log "github.com/sirupsen/logrus"
 )
 
-// #cgo CFLAGS: -I../lazypdf -I../lazypdf/mupdf-1.12.0-source/include -I../lazypdf/mupdf-1.12.0-source/include/mupdf -I../lazypdf/mupdf-1.12.0-source/thirdparty/openjpeg -I../lazypdf/mupdf-1.12.0-source/thirdparty/jbig2dec -I../lazypdf/mupdf-1.12.0-source/thirdparty/zlib -I../lazypdf/mupdf-1.12.0-source/thirdparty/jpeg -I../lazypdf/mupdf-1.12.0-source/thirdparty/freetype
-// #cgo LDFLAGS: -L../lazypdf/mupdf-1.12.0-source/build/release -lmupdf -lmupdfthird -lm -ljbig2dec -lz -lfreetype -ljpeg -lcrypto -lpthread
+// #cgo CFLAGS: -I../lazypdf -I../lazypdf/mupdf/include -I../lazypdf/mupdf/include/mupdf -I../lazypdf/mupdf/thirdparty/openjpeg -I../lazypdf/mupdf/thirdparty/jbig2dec -I../lazypdf/mupdf/thirdparty/zlib -I../lazypdf/mupdf/thirdparty/jpeg -I../lazypdf/mupdf/thirdparty/freetype
+// #cgo LDFLAGS: -L../lazypdf/mupdf/build/release -lmupdf -lmupdfthird -lm -ljbig2dec -lz -lfreetype -ljpeg -lcrypto -lpthread
 // #include <faster_raster.h>
 import "C"
 
