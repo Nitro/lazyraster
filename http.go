@@ -323,7 +323,7 @@ func (h *RasterHttpServer) handleImage(w http.ResponseWriter, r *http.Request) {
 	raster, err := h.rasterCache.GetRasterizer(rParams.StoragePath)
 	if err != nil {
 		log.Errorf("Unable to get rasterizer for %s: '%s'", rParams.StoragePath, err)
-		http.Error(w, fmt.Sprintf("Error encountered while processing pdf %s: '%s'", rParams.StoragePath, err), 500)
+		http.Error(w, "Error encountered while processing pdf", 500)
 		return
 	}
 
