@@ -10,15 +10,13 @@ services:
 
 before_install:
   - sudo apt-get install -y libjpeg62 zlib1g libjbig2dec0 libjbig2dec0-dev libfreetype6 libpng12-0 ca-certificates
-  # Temporary hack until we adjunst lazypdf to pull in its dependencies during build
-  - go get github.com/sirupsen/logrus && go get github.com/smartystreets/goconvey
   - go get -d github.com/Nitro/lazypdf && (cd ${GOPATH}/src/github.com/Nitro/lazypdf && ./build)
 
 install:
   - go get github.com/golang/dep/cmd/dep && dep ensure
 
 script:
-  - go test -v --timeout 30s `go list ./... | egrep -v "vendor/"` && go build
+  - go test -v -race --timeout 30s ./... && go build
   - if [ "$TRAVIS_BRANCH" == "master" ] && [ "${TRAVIS_GO_VERSION::4}" == "${PRODUCTION_GO_VERSION}" ]; then
       echo "Building container gonitro/lazyraster:${TRAVIS_COMMIT::7}" &&
       cp lazyraster docker/ &&
