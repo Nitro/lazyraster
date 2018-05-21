@@ -277,15 +277,24 @@ func (h *RasterHttpServer) handleImage(w http.ResponseWriter, r *http.Request) {
 
 	// Get notified when the socket closes
 	socketClosed := false
-	go func() {
-		cn, ok := w.(http.CloseNotifier)
-		if !ok {
-			// We don't support that interface with this ResponseWriter
-			return
-		}
-		<-cn.CloseNotify()
-		socketClosed = true
-	}()
+	handlerDone := make(chan struct{})
+	defer func() { close(handlerDone) }()
+	// We don't support non-CloseNotifier interfaces with this ResponseWriter
+	if cn, ok := w.(http.CloseNotifier); ok {
+		// CloseNotify can't be called after ServeHTTP finished, so fetch the CloseNotifier
+		// channel outside the goroutine
+		notifyChan := cn.CloseNotify()
+		go func() {
+			select {
+			// Wait for an early abort from the client while the handler is still running
+			case <-notifyChan:
+				socketClosed = true
+			// Make sure this goroutine doesn't block forever if the CloseNotifier doesn't
+			// fire when the connection is closed abruptly
+			case <-handlerDone:
+			}
+		}()
+	}
 
 	// Try to get the file from the cache and/or backing store.
 	// NOTE: this can block for a long time while we download a file
