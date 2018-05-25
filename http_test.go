@@ -100,10 +100,12 @@ func Test_EndToEnd(t *testing.T) {
 			agent:       nil,
 		}
 
-		filename := "73/6090c594d41728a7d7ad1e1a4d58cd28.pdf" // cache file for sample.pdf
+		filename := "12/6090c594d41728a7d7ad1e1a4d58cd28.pdf"      // cache file for sample.pdf
+		filenameNoExt := "4d/6090c594d41728a7d7ad1e1a4d58cd28.pdf" // cache file for sample
 
 		Reset(func() {
 			os.Remove(cache.GetFileName("somewhere/sample.pdf"))
+			os.Remove(cache.GetFileName("somewhere/sample"))
 		})
 
 		Convey("Handling error conditions", func() {
@@ -205,6 +207,7 @@ func Test_EndToEnd(t *testing.T) {
 
 		Convey("When everything is working", func() {
 			os.MkdirAll(filepath.Join(os.TempDir(), filepath.Dir(filename)), 0755)
+			os.MkdirAll(filepath.Join(os.TempDir(), filepath.Dir(filenameNoExt)), 0755)
 			CopyFile(cache.GetFileName("somewhere/sample.pdf"), "fixtures/sample.pdf", 0644)
 			CopyFile(cache.GetFileName("somewhere/sample"), "fixtures/sample.pdf", 0644)
 			recorder := httptest.NewRecorder()
