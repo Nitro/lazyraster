@@ -73,7 +73,7 @@ func Test_Remove(t *testing.T) {
 
 			raster2, _ := cache.GetRasterizer(fixture)
 			So(raster2, ShouldNotBeNil)
-			So(raster, ShouldNotPointTo, raster2)
+			So(raster, ShouldNotEqual, raster2)
 		})
 	})
 }
