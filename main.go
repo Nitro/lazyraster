@@ -12,6 +12,7 @@ import (
 	"github.com/Nitro/filecache"
 	"github.com/Nitro/memberlist"
 	"github.com/Nitro/ringman"
+	_ "github.com/ianlancetaylor/cgosymbolizer"
 	"github.com/kelseyhightower/envconfig"
 	"github.com/relistan/rubberneck"
 	log "github.com/sirupsen/logrus"
