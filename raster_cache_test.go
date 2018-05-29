@@ -65,16 +65,21 @@ func Test_GetRasterizer(t *testing.T) {
 func Test_Remove(t *testing.T) {
 	Convey("Remove()", t, func() {
 		Convey("removes a file", func() {
-			cache, _ := NewRasterCache(1)
+			cache, err := NewRasterCache(1)
+			So(err, ShouldBeNil)
 
-			raster, _ := cache.GetRasterizer(fixture)
+			raster, err := cache.GetRasterizer(fixture)
+			So(err, ShouldBeNil)
 			So(raster, ShouldNotBeNil)
+			So(cache.rasterizers.Contains(fixture), ShouldBeTrue)
 
 			cache.Remove(fixture)
+			So(cache.rasterizers.Contains(fixture), ShouldBeFalse)
 
-			raster2, _ := cache.GetRasterizer(fixture)
-			So(raster2, ShouldNotBeNil)
-			So(raster, ShouldNotEqual, raster2)
+			raster, err = cache.GetRasterizer(fixture)
+			So(err, ShouldBeNil)
+			So(raster, ShouldNotBeNil)
+			So(cache.rasterizers.Contains(fixture), ShouldBeTrue)
 		})
 	})
 }
