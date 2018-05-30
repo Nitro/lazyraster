@@ -7,7 +7,8 @@ import (
 )
 
 var (
-	fixture = "fixtures/sample.pdf"
+	fixture        = "fixtures/sample.pdf"
+	anotherFixture = "fixtures/mixed-sample.pdf"
 )
 
 func Test_NewRasterCache(t *testing.T) {
@@ -64,29 +65,40 @@ func Test_GetRasterizer(t *testing.T) {
 func Test_Remove(t *testing.T) {
 	Convey("Remove()", t, func() {
 		Convey("removes a file", func() {
-			cache, _ := NewRasterCache(1)
+			cache, err := NewRasterCache(1)
+			So(err, ShouldBeNil)
 
-			raster, _ := cache.GetRasterizer(fixture)
+			raster, err := cache.GetRasterizer(fixture)
+			So(err, ShouldBeNil)
 			So(raster, ShouldNotBeNil)
+			So(cache.rasterizers.Contains(fixture), ShouldBeTrue)
 
 			cache.Remove(fixture)
+			So(cache.rasterizers.Contains(fixture), ShouldBeFalse)
 
-			raster2, _ := cache.GetRasterizer(fixture)
-			So(raster2, ShouldNotBeNil)
-			So(raster, ShouldNotEqual, raster2)
+			raster, err = cache.GetRasterizer(fixture)
+			So(err, ShouldBeNil)
+			So(raster, ShouldNotBeNil)
+			So(cache.rasterizers.Contains(fixture), ShouldBeTrue)
 		})
 	})
 }
 
 func Test_onEvicted(t *testing.T) {
 	Convey("Handling eviction from the cache", t, func() {
-		cache, err := NewRasterCache(2)
-		raster, _ := cache.GetRasterizer(fixture)
-
+		cache, err := NewRasterCache(1)
 		So(err, ShouldBeNil)
-		So(cache.rasterizers.Len(), ShouldEqual, 1)
 
-		cache.rasterizers.Remove(fixture)
-		So(cache.mostRecentlyStopped, ShouldEqual, raster)
+		raster1, err := cache.GetRasterizer(fixture)
+		So(err, ShouldBeNil)
+		So(raster1, ShouldNotBeNil)
+		So(cache.rasterizers.Contains(fixture), ShouldBeTrue)
+		So(cache.rasterizers.Contains(anotherFixture), ShouldBeFalse)
+
+		raster2, err := cache.GetRasterizer(anotherFixture)
+		So(err, ShouldBeNil)
+		So(raster2, ShouldNotBeNil)
+		So(cache.rasterizers.Contains(fixture), ShouldBeFalse)
+		So(cache.rasterizers.Contains(anotherFixture), ShouldBeTrue)
 	})
 }

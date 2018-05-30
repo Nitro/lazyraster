@@ -22,9 +22,8 @@ const (
 // RasterCache is a simple LRU cache that holds a number of lazypdf.Rasterizer
 // entries. These are then cleaned up on eviction from the cache.
 type RasterCache struct {
-	rasterizers         *lru.Cache
-	rasterLock          sync.Mutex
-	mostRecentlyStopped *lazypdf.Rasterizer
+	rasterizers *lru.Cache
+	rasterLock  sync.Mutex
 }
 
 // NewDefaultRasterCache hands back a cache with the default configuration.
@@ -93,5 +92,4 @@ func (r *RasterCache) onEvicted(key interface{}, value interface{}) {
 	}
 
 	raster.Stop()
-	r.mostRecentlyStopped = raster
 }
