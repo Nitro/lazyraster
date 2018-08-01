@@ -10,7 +10,7 @@ import (
 )
 
 // #cgo CFLAGS: -I../lazypdf -I../lazypdf/mupdf/include -I../lazypdf/mupdf/include/mupdf -I../lazypdf/mupdf/thirdparty/openjpeg -I../lazypdf/mupdf/thirdparty/jbig2dec -I../lazypdf/mupdf/thirdparty/zlib -I../lazypdf/mupdf/thirdparty/jpeg -I../lazypdf/mupdf/thirdparty/freetype
-// #cgo LDFLAGS: -L../lazypdf/mupdf/build/release -lmupdf -lmupdfthird -lm -ljbig2dec -lz -lfreetype -ljpeg -lcrypto -lpthread
+// #cgo LDFLAGS: -L../lazypdf/mupdf/build/release -lmupdf -lmupdfthird -lm -lz -lcrypto -lpthread
 // #include <faster_raster.h>
 import "C"
 
