@@ -2,10 +2,7 @@ FROM ubuntu:14.04
 
 RUN apt-get update && apt-get install -y \
                                 curl \
-                                libjpeg62 \
                                 zlib1g \
-                                libjbig2dec0 \
-                                libfreetype6 \
                                 libpng12-0 \
                                 ca-certificates
 
