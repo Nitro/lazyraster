@@ -82,7 +82,7 @@ func Test_urlToFilename(t *testing.T) {
 }
 
 func Test_EndToEnd(t *testing.T) {
-	Convey("End-to-end testing handleImage()", t, func() {
+	Convey("End-to-end testing handleDocument()", t, func() {
 		didDownload = false
 		downloadCount = 0
 
@@ -113,7 +113,7 @@ func Test_EndToEnd(t *testing.T) {
 				req := httptest.NewRequest("GET", "/documents/somewhere/asdf.pdf", nil)
 				recorder := httptest.NewRecorder()
 
-				h.handleImage(recorder, req)
+				h.handleDocument(recorder, req)
 				So(recorder.Result().StatusCode, ShouldEqual, 400)
 			})
 
@@ -124,7 +124,7 @@ func Test_EndToEnd(t *testing.T) {
 				req := httptest.NewRequest("GET", "/documents/somewhere/sample.pdf?page=10", nil)
 				recorder := httptest.NewRecorder()
 
-				h.handleImage(recorder, req)
+				h.handleDocument(recorder, req)
 				So(recorder.Result().StatusCode, ShouldEqual, 404)
 			})
 
@@ -135,7 +135,7 @@ func Test_EndToEnd(t *testing.T) {
 				req := httptest.NewRequest("GET", "/documents/somewhere/sample.pdf?page=-1", nil)
 				recorder := httptest.NewRecorder()
 
-				h.handleImage(recorder, req)
+				h.handleDocument(recorder, req)
 
 				body, err := ioutil.ReadAll(recorder.Result().Body)
 				So(err, ShouldBeNil)
@@ -147,7 +147,7 @@ func Test_EndToEnd(t *testing.T) {
 				req := httptest.NewRequest("GET", "/documents/somewhere/asdf.pdf", nil)
 				recorder := httptest.NewRecorder()
 
-				h.handleImage(recorder, req)
+				h.handleDocument(recorder, req)
 
 				body, err := ioutil.ReadAll(recorder.Result().Body)
 				So(err, ShouldBeNil)
@@ -160,7 +160,7 @@ func Test_EndToEnd(t *testing.T) {
 				recorder := httptest.NewRecorder()
 				h.urlSecret = "secret"
 
-				h.handleImage(recorder, req)
+				h.handleDocument(recorder, req)
 
 				body, err := ioutil.ReadAll(recorder.Result().Body)
 				So(err, ShouldBeNil)
@@ -172,7 +172,7 @@ func Test_EndToEnd(t *testing.T) {
 				req := httptest.NewRequest("GET", "/documents/somewhere/sample.pdf?page=1&width=-300", nil)
 				recorder := httptest.NewRecorder()
 
-				h.handleImage(recorder, req)
+				h.handleDocument(recorder, req)
 
 				body, err := ioutil.ReadAll(recorder.Result().Body)
 				So(err, ShouldBeNil)
@@ -184,7 +184,7 @@ func Test_EndToEnd(t *testing.T) {
 				req := httptest.NewRequest("GET", "/documents/somewhere/sample.pdf?page=1&width=300000", nil)
 				recorder := httptest.NewRecorder()
 
-				h.handleImage(recorder, req)
+				h.handleDocument(recorder, req)
 
 				body, err := ioutil.ReadAll(recorder.Result().Body)
 				So(err, ShouldBeNil)
@@ -196,7 +196,7 @@ func Test_EndToEnd(t *testing.T) {
 				req := httptest.NewRequest("GET", "/documents/sample.pdf?page=1", nil)
 				recorder := httptest.NewRecorder()
 
-				h.handleImage(recorder, req)
+				h.handleDocument(recorder, req)
 
 				body, err := ioutil.ReadAll(recorder.Result().Body)
 				So(err, ShouldBeNil)
@@ -215,7 +215,7 @@ func Test_EndToEnd(t *testing.T) {
 			Convey("Handles a normal request", func() {
 				req := httptest.NewRequest("GET", "/documents/somewhere/sample.pdf?page=1", nil)
 
-				h.handleImage(recorder, req)
+				h.handleDocument(recorder, req)
 
 				body, err := ioutil.ReadAll(recorder.Result().Body)
 				So(err, ShouldBeNil)
@@ -228,7 +228,7 @@ func Test_EndToEnd(t *testing.T) {
 			Convey("Handles a jpeg", func() {
 				req := httptest.NewRequest("GET", "/documents/somewhere/sample.pdf?page=1&width=1024&quality=75&imageType=image/jpeg", nil)
 
-				h.handleImage(recorder, req)
+				h.handleDocument(recorder, req)
 
 				body, err := ioutil.ReadAll(recorder.Result().Body)
 				So(err, ShouldBeNil)
@@ -240,7 +240,7 @@ func Test_EndToEnd(t *testing.T) {
 			Convey("Handles a png", func() {
 				req := httptest.NewRequest("GET", "/documents/somewhere/sample.pdf?page=1&width=1024&quality=75&imageType=image/png", nil)
 
-				h.handleImage(recorder, req)
+				h.handleDocument(recorder, req)
 
 				body, err := ioutil.ReadAll(recorder.Result().Body)
 				So(err, ShouldBeNil)
@@ -252,7 +252,7 @@ func Test_EndToEnd(t *testing.T) {
 			Convey("Handles a bunch of options", func() {
 				req := httptest.NewRequest("GET", "/documents/somewhere/sample.pdf?page=1&scale=1.5&quality=75", nil)
 
-				h.handleImage(recorder, req)
+				h.handleDocument(recorder, req)
 
 				body, err := ioutil.ReadAll(recorder.Result().Body)
 				So(err, ShouldBeNil)
@@ -263,7 +263,7 @@ func Test_EndToEnd(t *testing.T) {
 			Convey("Handles a file with no file extension", func() {
 				req := httptest.NewRequest("GET", "/documents/somewhere/sample?page=1&scale=1.5&quality=75", nil)
 
-				h.handleImage(recorder, req)
+				h.handleDocument(recorder, req)
 
 				body, err := ioutil.ReadAll(recorder.Result().Body)
 				So(err, ShouldBeNil)
@@ -294,7 +294,7 @@ func Test_EndToEnd(t *testing.T) {
 					nil,
 				)
 
-				h.handleImage(recorder, req)
+				h.handleDocument(recorder, req)
 
 				So(didDownload, ShouldBeTrue)
 			})
@@ -302,7 +302,7 @@ func Test_EndToEnd(t *testing.T) {
 			Convey("Doesn't download if the timestamp is absent", func() {
 				req := httptest.NewRequest("GET", "/documents/somewhere/sample.pdf?page=1", nil)
 
-				h.handleImage(recorder, req)
+				h.handleDocument(recorder, req)
 
 				So(didDownload, ShouldBeFalse)
 			})
@@ -315,7 +315,7 @@ func Test_EndToEnd(t *testing.T) {
 					nil,
 				)
 
-				h.handleImage(recorder, req)
+				h.handleDocument(recorder, req)
 
 				So(didDownload, ShouldBeFalse)
 

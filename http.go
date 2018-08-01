@@ -36,18 +36,22 @@ var (
 	shutdownMutex sync.Mutex
 )
 
-// A RasterParams stores all the parameters from the web request that
-// are germaine to a raster operation.
-type RasterParams struct {
+// RasterDocumentParams stores all the parameters from the web request that
+// are needed to fetch a document.
+type RasterDocumentParams struct {
+	Timestamp   time.Time
+	Filename    string
+	StoragePath string
+}
+
+// RasterImageParams stores all the parameters from the web request that
+// are required for the raster operation.
+type RasterImageParams struct {
 	Page         int
 	Width        int
 	Scale        float64
 	ImageType    string
 	ImageQuality int
-	Token        string
-	Timestamp    time.Time
-	Filename     string
-	StoragePath  string
 }
 
 // imageQualityForRequest parses out the value for the imageQuality parameter
@@ -204,51 +208,58 @@ func urlToFilename(url string) string {
 	return strings.Join(pathParts, "/")
 }
 
-func (h *RasterHttpServer) processParams(r *http.Request) (*RasterParams, int, error) {
-	var rParams RasterParams
-	var err error
-
-	// Parse out and handle some HTTP parameters
-	rParams.Page, err = pageForRequest(r)
-	if err != nil {
-		return nil, 400, err
-	}
-
-	rParams.ImageQuality = imageQualityForRequest(r)
-
-	rParams.Width, err = widthForRequest(r)
-	if err != nil {
-		return nil, 400, err
-	}
-
-	rParams.ImageType = imageTypeForRequest(r)
-
-	rParams.Scale, err = scaleForRequest(r)
-	if err != nil {
-		return nil, 400, err
-	}
+func (h *RasterHttpServer) processDocumentParams(r *http.Request) (*RasterDocumentParams, int, error) {
+	var docParams RasterDocumentParams
 
 	// Clean up the URL path into a local filename.
-	rParams.Filename = urlToFilename(r.URL.Path)
-	if rParams.Filename == "" || rParams.Filename == "/" {
+	docParams.Filename = urlToFilename(r.URL.Path)
+	if docParams.Filename == "" || docParams.Filename == "/" {
 		return nil, 404, errors.New("Invalid URL path")
 	}
 
-	rParams.StoragePath = h.cache.GetFileName(rParams.Filename)
-	rParams.Timestamp = timestampForRequest(r)
+	docParams.StoragePath = h.cache.GetFileName(docParams.Filename)
+	docParams.Timestamp = timestampForRequest(r)
 
-	return &rParams, 0, nil
+	return &docParams, 0, nil
+
 }
 
-// handleImage is an HTTP handler that responds to requests for pages
-func (h *RasterHttpServer) handleImage(w http.ResponseWriter, r *http.Request) {
+func (h *RasterHttpServer) processImageParams(r *http.Request) (*RasterImageParams, int, error) {
+	var imgParams RasterImageParams
+	var err error
+
+	// Parse out and handle some HTTP parameters
+	imgParams.Page, err = pageForRequest(r)
+	if err != nil {
+		return nil, 400, err
+	}
+
+	imgParams.ImageQuality = imageQualityForRequest(r)
+
+	imgParams.Width, err = widthForRequest(r)
+	if err != nil {
+		return nil, 400, err
+	}
+
+	imgParams.ImageType = imageTypeForRequest(r)
+
+	imgParams.Scale, err = scaleForRequest(r)
+	if err != nil {
+		return nil, 400, err
+	}
+
+	return &imgParams, 0, nil
+}
+
+// handleDocument is an HTTP handler that responds to requests for documents
+func (h *RasterHttpServer) handleDocument(w http.ResponseWriter, r *http.Request) {
 
 	// Log some debug timing and send to New Relic
 	defer func(startTime time.Time) {
 		log.Debugf("Total request time: %s", time.Since(startTime))
 	}(time.Now())
 
-	t := h.beginTrace("handleImage")
+	t := h.beginTrace("handleDocument")
 	defer h.endTrace(t)
 
 	defer r.Body.Close()
@@ -263,14 +274,14 @@ func (h *RasterHttpServer) handleImage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Process all the incoming parameters into a RasterParams struct
-	rParams, status, err := h.processParams(r)
+	docParams, status, err := h.processDocumentParams(r)
 	if err != nil {
 		http.Error(w, err.Error(), status)
 		return
 	}
 
 	// Prevent the node from caching any new documents if it has been marked as offline
-	if h.ring != nil && !h.ring.Manager().Ping() && !h.cache.Contains(rParams.Filename) {
+	if h.ring != nil && !h.ring.Manager().Ping() && !h.cache.Contains(docParams.Filename) {
 		http.Error(w, "Node is offline", 503)
 		return
 	}
@@ -299,13 +310,13 @@ func (h *RasterHttpServer) handleImage(w http.ResponseWriter, r *http.Request) {
 	// Try to get the file from the cache and/or backing store.
 	// NOTE: this can block for a long time while we download a file
 	// from the backing store.
-	if time.Unix(0, 0).Before(rParams.Timestamp) { // Cache busting mechanism for forced reload
-		if !h.cache.FetchNewerThan(rParams.Filename, rParams.Timestamp) {
+	if time.Unix(0, 0).Before(docParams.Timestamp) { // Cache busting mechanism for forced reload
+		if !h.cache.FetchNewerThan(docParams.Filename, docParams.Timestamp) {
 			http.NotFound(w, r)
 			return
 		}
 	} else {
-		if !h.cache.Fetch(rParams.Filename) {
+		if !h.cache.Fetch(docParams.Filename) {
 			http.NotFound(w, r)
 			return
 		}
@@ -313,16 +324,16 @@ func (h *RasterHttpServer) handleImage(w http.ResponseWriter, r *http.Request) {
 
 	// Log how long we take to rasterize things
 	defer func(startTime time.Time) {
-		log.Debugf("Raster time %s for %s page %d", time.Since(startTime), r.URL.Path, rParams.Page)
+		log.Debugf("Raster time %s for %s", time.Since(startTime), r.URL.Path)
 	}(time.Now())
 	t2 := h.beginTrace("rasterize")
 	defer h.endTrace(t2)
 
 	// Get ahold of a rasterizer for this document either from the cache
 	// or newly constructed by the cache.
-	raster, err := h.rasterCache.GetRasterizer(rParams.StoragePath)
+	raster, err := h.rasterCache.GetRasterizer(docParams.StoragePath)
 	if err != nil {
-		log.Errorf("Unable to get rasterizer for %s: '%s'", rParams.StoragePath, err)
+		log.Errorf("Unable to get rasterizer for %s: '%s'", docParams.StoragePath, err)
 		http.Error(w, "Error encountered while processing pdf", 500)
 		return
 	}
@@ -332,8 +343,51 @@ func (h *RasterHttpServer) handleImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// if page is not included in request params, we return a JSON payload with
+	// document metadata
+	if r.FormValue("page") == "" {
+		h.handleDocumentInfo(w, docParams, raster)
+		return
+
+	}
+
+	h.handleImage(w, r, raster, &socketClosed)
+	return
+}
+
+func (h *RasterHttpServer) handleDocumentInfo(w http.ResponseWriter, docParams *RasterDocumentParams, raster *lazypdf.Rasterizer) {
+	payload := struct {
+		Filename  string
+		PageCount int
+	}{
+		Filename:  docParams.Filename,
+		PageCount: raster.GetPageCount(),
+	}
+
+	data, err := json.MarshalIndent(payload, "", "  ")
+	if err != nil {
+		http.Error(w, `{"status": "error", "message":`+err.Error()+`}`, 500)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(data)
+}
+
+// handleImage is an HTTP handler that responds to requests for pages
+func (h *RasterHttpServer) handleImage(w http.ResponseWriter, r *http.Request, raster *lazypdf.Rasterizer, socketClosed *bool) {
+
+	t := h.beginTrace("handleImage")
+	defer h.endTrace(t)
+
+	imgParams, status, err := h.processImageParams(r)
+	if err != nil {
+		http.Error(w, err.Error(), status)
+		return
+	}
+
 	// Actually render the page to a bitmap so we can encode to JPEG/PNG
-	image, err := raster.GeneratePage(rParams.Page, rParams.Width, rParams.Scale)
+	image, err := raster.GeneratePage(imgParams.Page, imgParams.Width, imgParams.Scale)
 	if err != nil {
 		if lazypdf.IsBadPage(err) {
 			http.Error(w, fmt.Sprintf("Page is not part of this pdf: %s", err), 404)
@@ -346,22 +400,22 @@ func (h *RasterHttpServer) handleImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if socketClosed {
+	if *socketClosed {
 		log.Infof("Socket closed by client, aborting request for '%s'", r.URL.Path)
 		return
 	}
 
-	w.Header().Set("Content-Type", rParams.ImageType)
+	w.Header().Set("Content-Type", imgParams.ImageType)
 	w.Header().Set("Cache-Control", fmt.Sprintf("max-age=%d", int64(SigningBucketSize)/1e9))
 
-	if rParams.ImageType == "image/jpeg" {
-		err = jpeg.Encode(w, image, &jpeg.Options{Quality: rParams.ImageQuality})
+	if imgParams.ImageType == "image/jpeg" {
+		err = jpeg.Encode(w, image, &jpeg.Options{Quality: imgParams.ImageQuality})
 	} else {
 		err = png.Encode(w, image)
 	}
 
 	if err != nil && !strings.Contains(err.Error(), "write: broken pipe") {
-		msg := fmt.Sprintf("Error while encoding image as '%s': %s", rParams.ImageType, err)
+		msg := fmt.Sprintf("Error while encoding image as '%s': %s", imgParams.ImageType, err)
 		log.Errorf(msg)
 		http.Error(w, msg, 500)
 	}
@@ -472,7 +526,7 @@ func serveHttp(config *Config, cache *filecache.FileCache, ring ringman.Ring,
 
 	// We have to wrap this to make LoggingHandler happy
 	docHandler := http.NewServeMux()
-	docHandler.HandleFunc("/", handle(h.handleImage))
+	docHandler.HandleFunc("/", handle(h.handleDocument))
 
 	// ------------------------------------------------------------------------
 	// Route definitions
