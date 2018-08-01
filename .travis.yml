@@ -9,7 +9,7 @@ services:
   - docker
 
 before_install:
-  - sudo apt-get install -y zlib1g libpng12-0 ca-certificates
+  - sudo apt-get install -y ca-certificates
   - go get -d github.com/Nitro/lazypdf && (cd ${GOPATH}/src/github.com/Nitro/lazypdf && ./build)
 
 install:
