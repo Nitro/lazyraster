@@ -231,12 +231,6 @@
   revision = "0a025b7e63adc15a622f29b0b2c4c3848243bbf6"
 
 [[projects]]
-  branch = "master"
-  name = "github.com/ianlancetaylor/cgosymbolizer"
-  packages = ["."]
-  revision = "f5072df9c550dc687157e5d7efb50825cdf8f0eb"
-
-[[projects]]
   name = "github.com/jmespath/go-jmespath"
   packages = ["."]
   revision = "0b12d6b5"
@@ -401,6 +395,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "4b8db83c57227c9e663c4fed94491e02dcd4b2cefd001e4a3daf5ca6a04dca51"
+  inputs-digest = "f95c4ca8df0d95ae1a6f77059ebfbd7b0bca7e391e708eb86ccd550d0de041ac"
   solver-name = "gps-cdcl"
   solver-version = 1
