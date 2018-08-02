@@ -54,6 +54,12 @@ type RasterImageParams struct {
 	ImageQuality int
 }
 
+// DocumentMetadata contains information about the requested document
+type DocumentMetadata struct {
+	Filename  string
+	PageCount int
+}
+
 // imageQualityForRequest parses out the value for the imageQuality parameter
 func imageQualityForRequest(r *http.Request) int {
 	imageQuality := 100
@@ -356,10 +362,7 @@ func (h *RasterHttpServer) handleDocument(w http.ResponseWriter, r *http.Request
 }
 
 func (h *RasterHttpServer) handleDocumentInfo(w http.ResponseWriter, docParams *RasterDocumentParams, raster *lazypdf.Rasterizer) {
-	payload := struct {
-		Filename  string
-		PageCount int
-	}{
+	payload := DocumentMetadata{
 		Filename:  docParams.Filename,
 		PageCount: raster.GetPageCount(),
 	}

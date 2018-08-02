@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -14,28 +15,6 @@ import (
 
 	"github.com/Nitro/filecache"
 	. "github.com/smartystreets/goconvey/convey"
-)
-
-var (
-	didDownload         bool
-	downloadShouldSleep bool
-	downloadShouldError bool
-	downloadCount       int
-	countLock           sync.Mutex
-
-	mockDownloader = func(fname string, localPath string) error {
-		if downloadShouldError {
-			return errors.New("Oh no! Tragedy!")
-		}
-		if downloadShouldSleep {
-			time.Sleep(10 * time.Millisecond)
-		}
-		countLock.Lock()
-		downloadCount += 1
-		countLock.Unlock()
-		didDownload = true
-		return nil
-	}
 )
 
 // CopyFile copies the contents from src to dst using io.Copy.
@@ -83,8 +62,25 @@ func Test_urlToFilename(t *testing.T) {
 
 func Test_EndToEnd(t *testing.T) {
 	Convey("End-to-end testing handleDocument()", t, func() {
-		didDownload = false
-		downloadCount = 0
+		didDownload := false
+		downloadCount := 0
+		downloadShouldSleep := false
+		downloadShouldError := false
+		var countLock sync.Mutex
+
+		mockDownloader := func(fname string, localPath string) error {
+			if downloadShouldError {
+				return errors.New("Oh no! Tragedy!")
+			}
+			if downloadShouldSleep {
+				time.Sleep(10 * time.Millisecond)
+			}
+			countLock.Lock()
+			downloadCount += 1
+			countLock.Unlock()
+			didDownload = true
+			return nil
+		}
 
 		cache, _ := filecache.NewS3Cache(10, os.TempDir(), "gondor-north-1", 1*time.Millisecond)
 		cache.DownloadFunc = mockDownloader
@@ -109,12 +105,17 @@ func Test_EndToEnd(t *testing.T) {
 		})
 
 		Convey("Handling error conditions", func() {
-			Convey("When no page is specified", func() {
+			Convey("When the document is not written properly to disk", func() {
+				// Fetch a file which doesn't exist, but leave downloadShouldError = false
+				// so mockDownloader doesn't return an error.
 				req := httptest.NewRequest("GET", "/documents/somewhere/asdf.pdf", nil)
 				recorder := httptest.NewRecorder()
 
 				h.handleDocument(recorder, req)
-				So(recorder.Result().StatusCode, ShouldEqual, 400)
+				body, err := ioutil.ReadAll(recorder.Result().Body)
+				So(err, ShouldBeNil)
+				So(recorder.Result().StatusCode, ShouldEqual, 500)
+				So(string(body), ShouldContainSubstring, "Error encountered while processing pdf")
 			})
 
 			Convey("When the page is not contained in the document", func() {
@@ -147,12 +148,13 @@ func Test_EndToEnd(t *testing.T) {
 				req := httptest.NewRequest("GET", "/documents/somewhere/asdf.pdf", nil)
 				recorder := httptest.NewRecorder()
 
+				downloadShouldError = true
 				h.handleDocument(recorder, req)
 
 				body, err := ioutil.ReadAll(recorder.Result().Body)
 				So(err, ShouldBeNil)
-				So(recorder.Result().StatusCode, ShouldEqual, 400)
-				So(string(body), ShouldContainSubstring, "Invalid page")
+				So(recorder.Result().StatusCode, ShouldEqual, 404)
+				So(string(body), ShouldContainSubstring, "page not found")
 			})
 
 			Convey("Rejects badly/unsigned URLs when signing is required", func() {
@@ -169,6 +171,9 @@ func Test_EndToEnd(t *testing.T) {
 			})
 
 			Convey("Doesn't accept negative width", func() {
+				os.MkdirAll(filepath.Join(os.TempDir(), filepath.Dir(filename)), 0755)
+				CopyFile(cache.GetFileName("somewhere/sample.pdf"), "fixtures/sample.pdf", 0644)
+
 				req := httptest.NewRequest("GET", "/documents/somewhere/sample.pdf?page=1&width=-300", nil)
 				recorder := httptest.NewRecorder()
 
@@ -181,6 +186,9 @@ func Test_EndToEnd(t *testing.T) {
 			})
 
 			Convey("Doesn't accept crazy wide width", func() {
+				os.MkdirAll(filepath.Join(os.TempDir(), filepath.Dir(filename)), 0755)
+				CopyFile(cache.GetFileName("somewhere/sample.pdf"), "fixtures/sample.pdf", 0644)
+
 				req := httptest.NewRequest("GET", "/documents/somewhere/sample.pdf?page=1&width=300000", nil)
 				recorder := httptest.NewRecorder()
 
@@ -269,6 +277,22 @@ func Test_EndToEnd(t *testing.T) {
 				So(err, ShouldBeNil)
 				So(len(body), ShouldBeGreaterThan, 1024) // We really did get an image
 				So(recorder.Result().StatusCode, ShouldEqual, 200)
+			})
+
+			Convey("Returns document metadata when no page number is specified", func() {
+				req := httptest.NewRequest("GET", "/documents/somewhere/sample.pdf", nil)
+
+				h.handleDocument(recorder, req)
+
+				body, err := ioutil.ReadAll(recorder.Result().Body)
+				So(err, ShouldBeNil)
+				So(recorder.Result().StatusCode, ShouldEqual, 200)
+
+				var meta DocumentMetadata
+				err = json.Unmarshal(body, &meta)
+				So(err, ShouldBeNil)
+				So(meta.Filename, ShouldEqual, "somewhere/sample.pdf")
+				So(meta.PageCount, ShouldEqual, 2)
 			})
 		})
 
