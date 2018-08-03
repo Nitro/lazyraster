@@ -20,7 +20,7 @@
   branch = "master"
   name = "github.com/Nitro/filecache"
   packages = ["."]
-  revision = "1659d046b3572b3ba42518fa0a1daf79986f0d2b"
+  revision = "426b69f7275516c7e40d204b67855971448b46d0"
 
 [[projects]]
   branch = "master"
@@ -162,6 +162,17 @@
   version = "v0.3.2"
 
 [[projects]]
+  name = "github.com/dropbox/dropbox-sdk-go-unofficial"
+  packages = [
+    "dropbox",
+    "dropbox/async",
+    "dropbox/file_properties",
+    "dropbox/files"
+  ]
+  revision = "7afa861bfde5a348d765522b303b6fbd9d250155"
+  version = "v4.1.0"
+
+[[projects]]
   name = "github.com/fsouza/go-dockerclient"
   packages = ["."]
   revision = "2ff310040c161b75fa19fb9b287a90a6e03c0012"
@@ -178,6 +189,12 @@
   packages = ["proto"]
   revision = "342cbe0a04158f6dcb03ca0079991a51a4248c02"
   version = "v0.5"
+
+[[projects]]
+  name = "github.com/golang/protobuf"
+  packages = ["proto"]
+  revision = "b4deda0973fb4c70b50d226b1af49f3da59f5265"
+  version = "v1.1.0"
 
 [[projects]]
   branch = "master"
@@ -385,12 +402,35 @@
 
 [[projects]]
   branch = "master"
+  name = "golang.org/x/oauth2"
+  packages = [
+    ".",
+    "internal"
+  ]
+  revision = "3d292e4d0cdc3a0113e6d207bb137145ef1de42f"
+
+[[projects]]
+  branch = "master"
   name = "golang.org/x/sys"
   packages = [
     "unix",
     "windows"
   ]
   revision = "8dbc5d05d6edcc104950cc299a1ce6641235bc86"
+
+[[projects]]
+  name = "google.golang.org/appengine"
+  packages = [
+    "internal",
+    "internal/base",
+    "internal/datastore",
+    "internal/log",
+    "internal/remote_api",
+    "internal/urlfetch",
+    "urlfetch"
+  ]
+  revision = "b1f26356af11148e710935ed1ac8a7f5702c7612"
+  version = "v1.1.0"
 
 [solve-meta]
   analyzer-name = "dep"
