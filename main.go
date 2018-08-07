@@ -237,11 +237,11 @@ func main() {
 		log.Fatalf("Unable to create LRU cache: %s", err)
 	}
 
-	// Wrap the S3 download function with Gorelic to report on S3 times
+	// Wrap the download function with Gorelic to report on download times
 	if agent != nil {
 		origFunc := fCache.DownloadFunc
 		fCache.DownloadFunc = func(downloadRecord *filecache.DownloadRecord, localPath string) error {
-			t := agent.Tracer.BeginTrace("s3Fetch")
+			t := agent.Tracer.BeginTrace("fileFetch")
 			defer t.EndTrace()
 			return origFunc(downloadRecord, localPath)
 		}
