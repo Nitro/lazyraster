@@ -258,6 +258,29 @@ func (h *RasterHttpServer) processImageParams(r *http.Request) (*RasterImagePara
 	return &imgParams, 0, nil
 }
 
+// handleCORS is a wrapper which sets the appropriate CORS headers before invoking the
+// specified HandlerFunc
+func handleCORS(handler http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
+
+		// For OPTIONS requests, we just forward the Access-Control-Request-Headers as
+		// Access-Control-Allow-Headers in the reply and return
+		if r.Method == http.MethodOptions {
+			if headers, ok := r.Header["Access-Control-Request-Headers"]; ok {
+				for _, header := range headers {
+					w.Header().Add("Access-Control-Allow-Headers", header)
+				}
+			}
+
+			return
+		}
+
+		handler(w, r)
+	}
+}
+
 // handleDocument is an HTTP handler that responds to requests for documents
 func (h *RasterHttpServer) handleDocument(w http.ResponseWriter, r *http.Request) {
 
@@ -270,9 +293,6 @@ func (h *RasterHttpServer) handleDocument(w http.ResponseWriter, r *http.Request
 	defer h.endTrace(t)
 
 	defer r.Body.Close()
-
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Methods", "GET")
 
 	// If we are supposed to use signed URLs, then do it!
 	if !h.isValidSignature(r.URL.String(), w) {
@@ -530,7 +550,7 @@ func serveHttp(config *Config, cache *filecache.FileCache, ring ringman.Ring,
 
 	// We have to wrap this to make LoggingHandler happy
 	docHandler := http.NewServeMux()
-	docHandler.HandleFunc("/", handle(h.handleDocument))
+	docHandler.HandleFunc("/", handle(handleCORS(h.handleDocument)))
 
 	// ------------------------------------------------------------------------
 	// Route definitions
