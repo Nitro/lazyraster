@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -298,6 +299,32 @@ func Test_EndToEnd(t *testing.T) {
 				_, err := ioutil.ReadAll(recorder.Result().Body)
 				So(err, ShouldBeNil)
 				So(isDummyArgSet, ShouldBeTrue)
+			})
+
+			Convey("Sets the appropriate CORS headers", func() {
+				req := httptest.NewRequest("GET", "/documents/somewhere/sample.pdf", nil)
+
+				dummyHandlerFunc := func(w http.ResponseWriter, r *http.Request) {}
+
+				handleCORS(dummyHandlerFunc)(recorder, req)
+
+				So(recorder.Header(), ShouldContainKey, "Access-Control-Allow-Origin")
+				So(recorder.Header()["Access-Control-Allow-Origin"], ShouldContain, "*")
+				So(recorder.Header(), ShouldContainKey, "Access-Control-Allow-Methods")
+				So(recorder.Header()["Access-Control-Allow-Methods"], ShouldContain, "GET, OPTIONS")
+			})
+
+			Convey("Returns the Access Control Headers in the response for OPTIONS", func() {
+				req := httptest.NewRequest("OPTIONS", "/documents/somewhere/sample.pdf?page=1", nil)
+				req.Header.Add("Access-Control-Request-Headers", "dropbox_token")
+				req.Header.Add("Access-Control-Request-Headers", "google_token")
+
+				dummyHandlerFunc := func(w http.ResponseWriter, r *http.Request) {}
+
+				handleCORS(dummyHandlerFunc)(recorder, req)
+
+				So(recorder.Header(), ShouldContainKey, "Access-Control-Allow-Headers")
+				So(recorder.Header()["Access-Control-Allow-Headers"], ShouldResemble, []string{"dropbox_token", "google_token"})
 			})
 		})
 
