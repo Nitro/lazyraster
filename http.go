@@ -39,9 +39,9 @@ var (
 // RasterDocumentParams stores all the parameters from the web request that
 // are needed to fetch a document.
 type RasterDocumentParams struct {
-	Timestamp   time.Time
-	Filename    string
-	StoragePath string
+	Timestamp      time.Time
+	DownloadRecord *filecache.DownloadRecord
+	StoragePath    string
 }
 
 // RasterImageParams stores all the parameters from the web request that
@@ -202,28 +202,29 @@ func (h *RasterHttpServer) handleClearRasterCache(w http.ResponseWriter, r *http
 	w.Write([]byte(`{"status": "OK"}`))
 }
 
-// urlToFilename converts the incoming URL path into a cached filename (this is
-// the filename on the backing store, not the cached filename locally).
-func urlToFilename(url string) string {
-	pathParts := strings.Split(strings.TrimPrefix(url, "/documents/"), "/")
-	// We need at least a bucket and filename
-	if len(pathParts) < 2 {
-		return ""
+func getHTTPHeaders(r *http.Request) map[string]string {
+	if len(r.Header) == 0 {
+		return nil
 	}
 
-	return strings.Join(pathParts, "/")
+	headers := make(map[string]string, len(r.Header))
+	for header := range r.Header {
+		headers[strings.ToLower(header)] = r.Header.Get(header)
+	}
+
+	return headers
 }
 
 func (h *RasterHttpServer) processDocumentParams(r *http.Request) (*RasterDocumentParams, int, error) {
 	var docParams RasterDocumentParams
 
-	// Clean up the URL path into a local filename.
-	docParams.Filename = urlToFilename(r.URL.Path)
-	if docParams.Filename == "" || docParams.Filename == "/" {
+	var err error
+	docParams.DownloadRecord, err = filecache.NewDownloadRecord(r.URL.Path, getHTTPHeaders(r))
+	if err != nil {
 		return nil, 404, errors.New("Invalid URL path")
 	}
 
-	docParams.StoragePath = h.cache.GetFileName(docParams.Filename)
+	docParams.StoragePath = h.cache.GetFileName(docParams.DownloadRecord)
 	docParams.Timestamp = timestampForRequest(r)
 
 	return &docParams, 0, nil
@@ -287,7 +288,7 @@ func (h *RasterHttpServer) handleDocument(w http.ResponseWriter, r *http.Request
 	}
 
 	// Prevent the node from caching any new documents if it has been marked as offline
-	if h.ring != nil && !h.ring.Manager().Ping() && !h.cache.Contains(docParams.Filename) {
+	if h.ring != nil && !h.ring.Manager().Ping() && !h.cache.Contains(docParams.DownloadRecord) {
 		http.Error(w, "Node is offline", 503)
 		return
 	}
@@ -317,12 +318,12 @@ func (h *RasterHttpServer) handleDocument(w http.ResponseWriter, r *http.Request
 	// NOTE: this can block for a long time while we download a file
 	// from the backing store.
 	if time.Unix(0, 0).Before(docParams.Timestamp) { // Cache busting mechanism for forced reload
-		if !h.cache.FetchNewerThan(docParams.Filename, docParams.Timestamp) {
+		if !h.cache.FetchNewerThan(docParams.DownloadRecord, docParams.Timestamp) {
 			http.NotFound(w, r)
 			return
 		}
 	} else {
-		if !h.cache.Fetch(docParams.Filename) {
+		if !h.cache.Fetch(docParams.DownloadRecord) {
 			http.NotFound(w, r)
 			return
 		}
@@ -363,7 +364,7 @@ func (h *RasterHttpServer) handleDocument(w http.ResponseWriter, r *http.Request
 
 func (h *RasterHttpServer) handleDocumentInfo(w http.ResponseWriter, docParams *RasterDocumentParams, raster *lazypdf.Rasterizer) {
 	payload := DocumentMetadata{
-		Filename:  docParams.Filename,
+		Filename:  docParams.DownloadRecord.Path,
 		PageCount: raster.GetPageCount(),
 	}
 

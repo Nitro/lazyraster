@@ -222,24 +222,28 @@ func main() {
 		log.Fatalf("Unable to initialize the rasterizer cache: %s", err)
 	}
 
-	// Set up an S3-backed filecache to underly the rasterCache
-	fCache, err := filecache.NewS3Cache(
-		config.CacheSize, config.BaseDir, config.AwsRegion, ServerWriteTimeout,
+	// Set up a filecache to underly the rasterCache
+	fCache, err := filecache.New(
+		config.CacheSize,
+		config.BaseDir,
+		filecache.DownloadTimeout(ServerWriteTimeout),
+		// If we get a document with no extension, assume PDF
+		filecache.DefaultExtension(".pdf"),
+		// Enable both S3 and Dropbox downloaders
+		filecache.S3Downloader(config.AwsRegion),
+		filecache.DropboxDownloader(),
 	)
 	if err != nil {
 		log.Fatalf("Unable to create LRU cache: %s", err)
 	}
 
-	// If we get a document from S3 with no extension, assume PDF
-	fCache.DefaultExtension = ".pdf"
-
-	// Wrap the S3 download function with Gorelic to report on S3 times
+	// Wrap the download function with Gorelic to report on download times
 	if agent != nil {
 		origFunc := fCache.DownloadFunc
-		fCache.DownloadFunc = func(fname string, localPath string) error {
-			t := agent.Tracer.BeginTrace("s3Fetch")
+		fCache.DownloadFunc = func(downloadRecord *filecache.DownloadRecord, localPath string) error {
+			t := agent.Tracer.BeginTrace("fileFetch")
 			defer t.EndTrace()
-			return origFunc(fname, localPath)
+			return origFunc(downloadRecord, localPath)
 		}
 	}
 
