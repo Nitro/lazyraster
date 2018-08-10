@@ -58,5 +58,4 @@ ignored = ["github.com/Nitro/lazypdf"]
 
 [[constraint]]
   name = "github.com/yvasiyarov/gorelic"
-  source = "github.com/Nitro/gorelic"
-  branch = "fix-concurrency-bug"
+  revision = "635ca6035f2355e29fc558effa613d0d5867aac8"

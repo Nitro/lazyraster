@@ -375,11 +375,9 @@
   revision = "c25f46c4b94079672242ec48a545e7ca9ebe3aec"
 
 [[projects]]
-  branch = "fix-concurrency-bug"
   name = "github.com/yvasiyarov/gorelic"
   packages = ["."]
-  revision = "ad5aad4987bc27d2783acd46b4f86e55b28233d2"
-  source = "github.com/Nitro/gorelic"
+  revision = "635ca6035f2355e29fc558effa613d0d5867aac8"
 
 [[projects]]
   branch = "master"
@@ -437,6 +435,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "dc088038c6662bf3e620d5f384d4d2d1a943521cb78aa06c55d8fe310b4ec673"
+  inputs-digest = "6f22105a0953a8127f7421be5eac632068e874c3c50535f7f8595b6ad18510ed"
   solver-name = "gps-cdcl"
   solver-version = 1
