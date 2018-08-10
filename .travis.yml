@@ -10,7 +10,7 @@ services:
 
 before_install:
   - sudo apt-get install -y ca-certificates
-  - go get -d github.com/Nitro/lazypdf && (cd ${GOPATH}/src/github.com/Nitro/lazypdf && ./build)
+  - go get -d github.com/Nitro/lazypdf && (cd ${GOPATH}/src/github.com/Nitro/lazypdf && SHALLOW_CLONE=true ./build)
 
 install:
   - go get github.com/golang/dep/cmd/dep && dep ensure
