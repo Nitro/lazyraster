@@ -1,24 +1,29 @@
 #!/bin/sh
 
-if [ -z "${RASTER_BASE_DIR}" ]; then
-    echo "Failed to start lazyraster: RASTER_BASE_DIR not set"
-    return 1
+# Clean up cached files left behind by any previous containers using a background
+# job if ${RASTER_BASE_DIR} is volume mounted on the host
+if [ -d "${RASTER_BASE_DIR}" ]; then
+	(
+		# Select only the subfolders of ${RASTER_BASE_DIR}
+		for dir in "${RASTER_BASE_DIR}"/*/; do
+			# ${dir} will contain a trailing slash
+			if [ -f "${dir}container_stopped" ]; then
+				# First remove any temp files from the folder
+				find "${dir}" -mindepth 1 -type f ! -name "container_stopped" -delete && \
+				# Then remove the folder itself
+				rm -r "${dir}"
+			fi
+		done
+	) &
+else
+	echo "Error: Folder '${RASTER_BASE_DIR}' wasn't volume mounted on the host"
+	return 1
 fi
 
-echo "Trying to clear existing Lazyraster cached files (if any) in the background..."
-if [ -d "${RASTER_BASE_DIR}" ]; then
-	NOW=$(date +%s)
-	( \
-		# Delete old cached PDF files
-		find "${RASTER_BASE_DIR}" -mindepth 1 -type f -name "*.pdf" \! -newermt "@${NOW}" -delete && \
-		# Delete remaining empty subfolders, if any
-		# - deleting files changes the modification time of their parent folders, so we might
-		#   leave some empty folders behind that will be cleaned up next time this script runs...
-		# - when passing -delete to find, -depth is implicit which forces find to
-		#   process each directory's contents before the directory itself.
-		find "${RASTER_BASE_DIR}" -mindepth 1 -type d -empty \! -newermt "@${NOW}" -delete \
-	) &
-fi
+# Namespace the lazyraster cache folder using the container ID, which we read from ${HOSTNAME}
+# This is needed because multiple lazyraster containers can run on the same machine.
+export RASTER_BASE_DIR="${RASTER_BASE_DIR}/${HOSTNAME}"
+mkdir ${RASTER_BASE_DIR}
 
 echo "Launching Lazyraster service..."
 /lazyraster/lazyraster
