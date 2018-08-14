@@ -7,5 +7,5 @@
 # from any previous containers when we start again on the same host.
 # The cleanup will be performed by lazyraster.svc
 if [ -d "${RASTER_BASE_DIR}/${HOSTNAME}" ]; then
-	touch "{RASTER_BASE_DIR}/${HOSTNAME}/container_stopped"
+	touch "${RASTER_BASE_DIR}/${HOSTNAME}/container_stopped"
 fi
