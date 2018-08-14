@@ -209,7 +209,7 @@ func getHTTPHeaders(r *http.Request) map[string]string {
 
 	headers := make(map[string]string, len(r.Header))
 	for header := range r.Header {
-		headers[strings.ToLower(header)] = r.Header.Get(header)
+		headers[header] = r.Header.Get(header)
 	}
 
 	return headers
