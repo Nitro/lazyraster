@@ -279,16 +279,16 @@ func Test_EndToEnd(t *testing.T) {
 				So(meta.PageCount, ShouldEqual, 2)
 			})
 
-			Convey("Sets the request HTTP headers in the DownloadRecord Args", func() {
+			Convey("Sets the request HTTP headers in the DownloadRecord Args for recognised args", func() {
 				req := httptest.NewRequest("GET", "/documents/somewhere/sample.pdf?page=1", nil)
-				dummyArg := "TestAccessToken"
+				dummyArg := "DropboxAccessToken"
 				dummyVal := "ThouShaltNotPass"
 				req.Header.Add(dummyArg, dummyVal)
 
 				isDummyArgSet := false
 				cache.DownloadFunc = func(downloadRecord *filecache.DownloadRecord, localPath string) error {
 					for arg, val := range downloadRecord.Args {
-						if strings.ToLower(arg) == strings.ToLower(dummyArg) && val == dummyVal {
+						if arg == strings.ToLower(dummyArg) && val == dummyVal {
 							isDummyArgSet = true
 						}
 					}
