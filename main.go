@@ -240,10 +240,10 @@ func main() {
 	// Wrap the download function with Gorelic to report on download times
 	if agent != nil {
 		origFunc := fCache.DownloadFunc
-		fCache.DownloadFunc = func(downloadRecord *filecache.DownloadRecord, localPath string) error {
+		fCache.DownloadFunc = func(dr *filecache.DownloadRecord, localPath string) error {
 			t := agent.Tracer.BeginTrace("fileFetch")
 			defer t.EndTrace()
-			return origFunc(downloadRecord, localPath)
+			return origFunc(dr, localPath)
 		}
 	}
 

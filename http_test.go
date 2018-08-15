@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -49,7 +50,7 @@ func Test_EndToEnd(t *testing.T) {
 		downloadShouldError := false
 		var countLock sync.Mutex
 
-		mockDownloader := func(downloadRecord *filecache.DownloadRecord, localPath string) error {
+		mockDownloader := func(dr *filecache.DownloadRecord, localPath string) error {
 			if downloadShouldError {
 				return errors.New("Oh no! Tragedy!")
 			}
@@ -286,19 +287,49 @@ func Test_EndToEnd(t *testing.T) {
 				req.Header.Add(dummyArg, dummyVal)
 
 				isDummyArgSet := false
-				cache.DownloadFunc = func(downloadRecord *filecache.DownloadRecord, localPath string) error {
-					for arg, val := range downloadRecord.Args {
+				cache.DownloadFunc = func(dr *filecache.DownloadRecord, localPath string) error {
+					for arg, val := range dr.Args {
 						if arg == strings.ToLower(dummyArg) && val == dummyVal {
 							isDummyArgSet = true
 						}
 					}
-					return mockDownloader(downloadRecord, localPath)
+					return mockDownloader(dr, localPath)
 				}
 
 				h.handleDocument(recorder, req)
 				_, err := ioutil.ReadAll(recorder.Result().Body)
 				So(err, ShouldBeNil)
 				So(isDummyArgSet, ShouldBeTrue)
+			})
+
+			Convey("Fetches the file again if the recognised args differ", func() {
+				dummyToken := "DropboxAccessToken"
+				dummyTokenVal := "ThouShaltNotPass"
+				url, _ := url.Parse("/documents/dropbox/sample.pdf")
+
+				dr, _ := filecache.NewDownloadRecord(url.Path, map[string]string{dummyToken: dummyTokenVal})
+				os.MkdirAll(filepath.Dir(cache.GetFileName(dr)), 0755)
+				CopyFile(cache.GetFileName(dr), "fixtures/sample.pdf", 0644)
+
+				defer os.Remove(cache.GetFileName(dr))
+
+				req := httptest.NewRequest("GET", url.Path, nil)
+				req.Header.Set(dummyToken, dummyTokenVal)
+
+				h.handleDocument(recorder, req)
+				So(recorder.Result().StatusCode, ShouldEqual, 200)
+				So(downloadCount, ShouldEqual, 1)
+
+				// It should be in the cache now
+				h.handleDocument(recorder, req)
+				So(recorder.Result().StatusCode, ShouldEqual, 200)
+				So(downloadCount, ShouldEqual, 1)
+
+				// We should download the file again if we use a different token
+				req.Header.Set(dummyToken, "SaysWho?")
+				h.handleDocument(recorder, req)
+				So(recorder.Result().StatusCode, ShouldEqual, 200)
+				So(downloadCount, ShouldEqual, 2)
 			})
 
 			Convey("Sets the appropriate CORS headers", func() {
@@ -336,9 +367,9 @@ func Test_EndToEnd(t *testing.T) {
 
 			cache.Cache.Add("somewhere/sample.pdf", filename)
 			// On reload the file gets evicted/deleted so we need to put it back
-			reloadableDownloader := func(downloadRecord *filecache.DownloadRecord, localPath string) error {
+			reloadableDownloader := func(dr *filecache.DownloadRecord, localPath string) error {
 				CopyFile(filename, "fixtures/sample.pdf", 0644)
-				return mockDownloader(downloadRecord, localPath)
+				return mockDownloader(dr, localPath)
 			}
 			cache.DownloadFunc = reloadableDownloader
 
