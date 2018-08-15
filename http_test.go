@@ -50,7 +50,7 @@ func Test_EndToEnd(t *testing.T) {
 		downloadShouldError := false
 		var countLock sync.Mutex
 
-		mockDownloader := func(downloadRecord *filecache.DownloadRecord, localPath string) error {
+		mockDownloader := func(dr *filecache.DownloadRecord, localPath string) error {
 			if downloadShouldError {
 				return errors.New("Oh no! Tragedy!")
 			}
@@ -287,13 +287,13 @@ func Test_EndToEnd(t *testing.T) {
 				req.Header.Add(dummyArg, dummyVal)
 
 				isDummyArgSet := false
-				cache.DownloadFunc = func(downloadRecord *filecache.DownloadRecord, localPath string) error {
-					for arg, val := range downloadRecord.Args {
+				cache.DownloadFunc = func(dr *filecache.DownloadRecord, localPath string) error {
+					for arg, val := range dr.Args {
 						if arg == strings.ToLower(dummyArg) && val == dummyVal {
 							isDummyArgSet = true
 						}
 					}
-					return mockDownloader(downloadRecord, localPath)
+					return mockDownloader(dr, localPath)
 				}
 
 				h.handleDocument(recorder, req)
@@ -367,9 +367,9 @@ func Test_EndToEnd(t *testing.T) {
 
 			cache.Cache.Add("somewhere/sample.pdf", filename)
 			// On reload the file gets evicted/deleted so we need to put it back
-			reloadableDownloader := func(downloadRecord *filecache.DownloadRecord, localPath string) error {
+			reloadableDownloader := func(dr *filecache.DownloadRecord, localPath string) error {
 				CopyFile(filename, "fixtures/sample.pdf", 0644)
-				return mockDownloader(downloadRecord, localPath)
+				return mockDownloader(dr, localPath)
 			}
 			cache.DownloadFunc = reloadableDownloader
 
