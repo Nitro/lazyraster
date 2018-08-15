@@ -60,6 +60,13 @@ type DocumentMetadata struct {
 	PageCount int
 }
 
+// FilecacheEntry contains a Filecache entry
+type FilecacheEntry struct {
+	Path           string
+	StoragePath    string
+	LoadedInMemory bool
+}
+
 // imageQualityForRequest parses out the value for the imageQuality parameter
 func imageQualityForRequest(r *http.Request) int {
 	imageQuality := 100
@@ -185,6 +192,37 @@ func (h *RasterHttpServer) isValidSignature(url string, w http.ResponseWriter) b
 	}
 
 	return true
+}
+
+// handleListFilecache lists the contents of the disk cache along with the in memory status of each entry
+func (h *RasterHttpServer) handleListFilecache(w http.ResponseWriter, _ *http.Request) {
+	if h.ring != nil && !h.ring.Manager().Ping() {
+		http.Error(w, "Node is offline", 503)
+		return
+	}
+
+	payload := make([]FilecacheEntry, 0, h.cache.Cache.Len())
+	for _, key := range h.cache.Cache.Keys() {
+		if storagePath, ok := h.cache.Cache.Get(key); ok {
+			_, loadedInMemory := h.rasterCache.rasterizers.Get(storagePath)
+			payload = append(payload,
+				FilecacheEntry{
+					Path:           key.(string),
+					StoragePath:    storagePath.(string),
+					LoadedInMemory: loadedInMemory,
+				},
+			)
+		}
+	}
+
+	data, err := json.MarshalIndent(payload, "", "  ")
+	if err != nil {
+		http.Error(w, `{"status": "error", "message":`+err.Error()+`}`, 500)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(data)
 }
 
 // handleClearRasterCache allows us to manually clear out the raster cache
@@ -559,6 +597,7 @@ func serveHttp(config *Config, cache *filecache.FileCache, ring ringman.Ring,
 	mux.HandleFunc("/favicon.ico", http.NotFound) // Browsers look for this
 	mux.Handle("/hashring/", http.StripPrefix("/hashring", ring.HttpMux()))
 	mux.HandleFunc("/health", handle(h.handleHealth))
+	mux.HandleFunc("/filecache/list", handle(h.handleListFilecache))
 	mux.HandleFunc("/rastercache/purge", handle(h.handleClearRasterCache))
 	mux.HandleFunc("/shutdown", handle(h.handleShutdown))
 	mux.Handle("/documents/", handlers.LoggingHandler(os.Stdout, docHandler))

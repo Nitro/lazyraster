@@ -410,3 +410,76 @@ func Test_EndToEnd(t *testing.T) {
 		})
 	})
 }
+
+func Test_ListFilecache(t *testing.T) {
+	Convey("Testing handleListFilecache()", t, func() {
+		cache, _ := filecache.New(10, os.TempDir())
+		cache.DownloadFunc = func(downloadRecord *filecache.DownloadRecord, localPath string) error {
+			return nil
+		}
+
+		rasterCache, _ := NewRasterCache(1)
+		h := &RasterHttpServer{
+			cache:       cache,
+			rasterCache: rasterCache,
+		}
+
+		urlS3, _ := url.Parse("/documents/somewhere/sample.pdf")
+		drS3, _ := filecache.NewDownloadRecord(urlS3.Path, nil)
+		os.MkdirAll(filepath.Dir(cache.GetFileName(drS3)), 0755)
+		CopyFile(cache.GetFileName(drS3), "fixtures/sample.pdf", 0644)
+
+		urlDropbox, _ := url.Parse("/documents/dropbox/sample.pdf")
+		dummyToken := "DropboxAccessToken"
+		dummyTokenVal := "ThouShaltNotPass"
+		drDropbox, _ := filecache.NewDownloadRecord(urlDropbox.Path, map[string]string{dummyToken: dummyTokenVal})
+		os.MkdirAll(filepath.Dir(cache.GetFileName(drDropbox)), 0755)
+		CopyFile(cache.GetFileName(drDropbox), "fixtures/sample.pdf", 0644)
+
+		Reset(func() {
+			os.Remove(cache.GetFileName(drS3))
+			os.Remove(cache.GetFileName(drDropbox))
+		})
+
+		Convey("Handles a normal request when a few files are in the cache", func() {
+			recorder := httptest.NewRecorder()
+
+			req := httptest.NewRequest("GET", urlS3.Path, nil)
+			h.handleDocument(recorder, req)
+			So(recorder.Result().StatusCode, ShouldEqual, 200)
+
+			req = httptest.NewRequest("GET", urlDropbox.Path, nil)
+			req.Header.Set(dummyToken, dummyTokenVal)
+			h.handleDocument(recorder, req)
+			So(recorder.Result().StatusCode, ShouldEqual, 200)
+
+			recorder = httptest.NewRecorder()
+			h.handleListFilecache(recorder, nil)
+			So(recorder.Result().StatusCode, ShouldEqual, 200)
+
+			body, err := ioutil.ReadAll(recorder.Result().Body)
+			So(err, ShouldBeNil)
+
+			cacheEntries := []FilecacheEntry{}
+			err = json.Unmarshal(body, &cacheEntries)
+			So(err, ShouldBeNil)
+			So(len(cacheEntries), ShouldEqual, 2)
+			So(cacheEntries[0].Path, ShouldEqual, "somewhere/sample.pdf")
+			So(cacheEntries[0].StoragePath, ShouldEndWith, "12/c3e2cc0a00a4f64dfce9da6647d9ad84.pdf")
+			So(cacheEntries[0].LoadedInMemory, ShouldBeFalse)
+			So(cacheEntries[1].Path, ShouldEqual, "dropbox/sample.pdf_bf56c7da4cdec1809c81b2b91fd386d9")
+			So(cacheEntries[1].StoragePath, ShouldEndWith, "8f/880c3eeebde773ca3e3af30f3e175c90_bf56c7da4cdec1809c81b2b91fd386d9.pdf")
+			So(cacheEntries[1].LoadedInMemory, ShouldBeTrue)
+		})
+
+		Convey("Returns an empty result set when nothing is in the cache", func() {
+			recorder := httptest.NewRecorder()
+			h.handleListFilecache(recorder, nil)
+			So(recorder.Result().StatusCode, ShouldEqual, 200)
+
+			body, err := ioutil.ReadAll(recorder.Result().Body)
+			So(err, ShouldBeNil)
+			So(string(body), ShouldEqual, "[]")
+		})
+	})
+}
