@@ -281,15 +281,21 @@ func Test_EndToEnd(t *testing.T) {
 			})
 
 			Convey("Sets the request HTTP headers in the DownloadRecord Args for recognised args", func() {
-				req := httptest.NewRequest("GET", "/documents/somewhere/sample.pdf?page=1", nil)
-				dummyArg := "DropboxAccessToken"
-				dummyVal := "ThouShaltNotPass"
-				req.Header.Add(dummyArg, dummyVal)
+				url, _ := url.Parse("/documents/dropbox/sample.pdf?page=1")
+				dummyToken := "DropboxAccessToken"
+				dummyTokenVal := "ThouShaltNotPass"
+				dr, _ := filecache.NewDownloadRecord(url.Path, map[string]string{dummyToken: dummyTokenVal})
+				os.MkdirAll(filepath.Dir(cache.GetFileName(dr)), 0755)
+				CopyFile(cache.GetFileName(dr), "fixtures/sample.pdf", 0644)
+				defer os.Remove(cache.GetFileName(dr))
+
+				req := httptest.NewRequest("GET", url.Path, nil)
+				req.Header.Add(dummyToken, dummyTokenVal)
 
 				isDummyArgSet := false
 				cache.DownloadFunc = func(dr *filecache.DownloadRecord, localPath string) error {
 					for arg, val := range dr.Args {
-						if arg == strings.ToLower(dummyArg) && val == dummyVal {
+						if arg == strings.ToLower(dummyToken) && val == dummyTokenVal {
 							isDummyArgSet = true
 						}
 					}
@@ -297,6 +303,7 @@ func Test_EndToEnd(t *testing.T) {
 				}
 
 				h.handleDocument(recorder, req)
+				So(recorder.Result().StatusCode, ShouldEqual, 200)
 				_, err := ioutil.ReadAll(recorder.Result().Body)
 				So(err, ShouldBeNil)
 				So(isDummyArgSet, ShouldBeTrue)
@@ -310,7 +317,6 @@ func Test_EndToEnd(t *testing.T) {
 				dr, _ := filecache.NewDownloadRecord(url.Path, map[string]string{dummyToken: dummyTokenVal})
 				os.MkdirAll(filepath.Dir(cache.GetFileName(dr)), 0755)
 				CopyFile(cache.GetFileName(dr), "fixtures/sample.pdf", 0644)
-
 				defer os.Remove(cache.GetFileName(dr))
 
 				req := httptest.NewRequest("GET", url.Path, nil)
