@@ -313,16 +313,22 @@ func Test_EndToEnd(t *testing.T) {
 
 			Convey("Fetches the file again if the recognised args differ", func() {
 				dummyToken := "DropboxAccessToken"
-				dummyTokenVal := "ThouShaltNotPass"
+				dummyTokenVal1 := "ThouShaltNotPass"
+				dummyTokenVal2 := "SaysWho?"
 				url, _ := url.Parse("/documents/dropbox/sample.pdf")
 
-				dr, _ := filecache.NewDownloadRecord(url.Path, map[string]string{dummyToken: dummyTokenVal})
+				dr, _ := filecache.NewDownloadRecord(url.Path, map[string]string{dummyToken: dummyTokenVal1})
+				os.MkdirAll(filepath.Dir(cache.GetFileName(dr)), 0755)
+				CopyFile(cache.GetFileName(dr), "fixtures/sample.pdf", 0644)
+				defer os.Remove(cache.GetFileName(dr))
+
+				dr, _ = filecache.NewDownloadRecord(url.Path, map[string]string{dummyToken: dummyTokenVal2})
 				os.MkdirAll(filepath.Dir(cache.GetFileName(dr)), 0755)
 				CopyFile(cache.GetFileName(dr), "fixtures/sample.pdf", 0644)
 				defer os.Remove(cache.GetFileName(dr))
 
 				req := httptest.NewRequest("GET", url.Path, nil)
-				req.Header.Set(dummyToken, dummyTokenVal)
+				req.Header.Set(dummyToken, dummyTokenVal1)
 
 				h.handleDocument(recorder, req)
 				So(recorder.Result().StatusCode, ShouldEqual, 200)
@@ -334,7 +340,7 @@ func Test_EndToEnd(t *testing.T) {
 				So(downloadCount, ShouldEqual, 1)
 
 				// We should download the file again if we use a different token
-				req.Header.Set(dummyToken, "SaysWho?")
+				req.Header.Set(dummyToken, dummyTokenVal2)
 				h.handleDocument(recorder, req)
 				So(recorder.Result().StatusCode, ShouldEqual, 200)
 				So(downloadCount, ShouldEqual, 2)
