@@ -80,12 +80,14 @@ func Test_EndToEnd(t *testing.T) {
 			agent:       nil,
 		}
 
-		filename := "12/6090c594d41728a7d7ad1e1a4d58cd28.pdf"      // cache file for sample.pdf
-		filenameNoExt := "4d/6090c594d41728a7d7ad1e1a4d58cd28.pdf" // cache file for sample
+		dr, _ := filecache.NewDownloadRecord("/documents/somewhere/sample.pdf", nil)
+		So(cache.GetFileName(dr), ShouldEndWith, "12/c3e2cc0a00a4f64dfce9da6647d9ad84.pdf")
+		drNoExtension, _ := filecache.NewDownloadRecord("/documents/somewhere/sample", nil)
+		So(cache.GetFileName(drNoExtension), ShouldEndWith, "4d/6090c594d41728a7d7ad1e1a4d58cd28.pdf")
 
 		Reset(func() {
-			os.Remove(cache.GetFileName(&filecache.DownloadRecord{Path: "somewhere/sample.pdf"}))
-			os.Remove(cache.GetFileName(&filecache.DownloadRecord{Path: "somewhere/sample"}))
+			os.Remove(cache.GetFileName(dr))
+			os.Remove(cache.GetFileName(drNoExtension))
 		})
 
 		Convey("Handling error conditions", func() {
@@ -103,8 +105,8 @@ func Test_EndToEnd(t *testing.T) {
 			})
 
 			Convey("When the page is not contained in the document", func() {
-				os.MkdirAll(filepath.Join(os.TempDir(), filepath.Dir(filename)), 0755)
-				CopyFile(cache.GetFileName(&filecache.DownloadRecord{Path: "somewhere/sample.pdf"}), "fixtures/sample.pdf", 0644)
+				os.MkdirAll(filepath.Dir(cache.GetFileName(dr)), 0755)
+				CopyFile(cache.GetFileName(dr), "fixtures/sample.pdf", 0644)
 
 				req := httptest.NewRequest("GET", "/documents/somewhere/sample.pdf?page=10", nil)
 				recorder := httptest.NewRecorder()
@@ -114,8 +116,8 @@ func Test_EndToEnd(t *testing.T) {
 			})
 
 			Convey("When the page is not valid", func() {
-				os.MkdirAll(filepath.Join(os.TempDir(), filepath.Dir(filename)), 0755)
-				CopyFile(cache.GetFileName(&filecache.DownloadRecord{Path: "somewhere/sample.pdf"}), "fixtures/sample.pdf", 0644)
+				os.MkdirAll(filepath.Dir(cache.GetFileName(dr)), 0755)
+				CopyFile(cache.GetFileName(dr), "fixtures/sample.pdf", 0644)
 
 				req := httptest.NewRequest("GET", "/documents/somewhere/sample.pdf?page=-1", nil)
 				recorder := httptest.NewRecorder()
@@ -155,8 +157,8 @@ func Test_EndToEnd(t *testing.T) {
 			})
 
 			Convey("Doesn't accept negative width", func() {
-				os.MkdirAll(filepath.Join(os.TempDir(), filepath.Dir(filename)), 0755)
-				CopyFile(cache.GetFileName(&filecache.DownloadRecord{Path: "somewhere/sample.pdf"}), "fixtures/sample.pdf", 0644)
+				os.MkdirAll(filepath.Dir(cache.GetFileName(dr)), 0755)
+				CopyFile(cache.GetFileName(dr), "fixtures/sample.pdf", 0644)
 
 				req := httptest.NewRequest("GET", "/documents/somewhere/sample.pdf?page=1&width=-300", nil)
 				recorder := httptest.NewRecorder()
@@ -170,8 +172,8 @@ func Test_EndToEnd(t *testing.T) {
 			})
 
 			Convey("Doesn't accept crazy wide width", func() {
-				os.MkdirAll(filepath.Join(os.TempDir(), filepath.Dir(filename)), 0755)
-				CopyFile(cache.GetFileName(&filecache.DownloadRecord{Path: "somewhere/sample.pdf"}), "fixtures/sample.pdf", 0644)
+				os.MkdirAll(filepath.Dir(cache.GetFileName(dr)), 0755)
+				CopyFile(cache.GetFileName(dr), "fixtures/sample.pdf", 0644)
 
 				req := httptest.NewRequest("GET", "/documents/somewhere/sample.pdf?page=1&width=300000", nil)
 				recorder := httptest.NewRecorder()
@@ -198,10 +200,10 @@ func Test_EndToEnd(t *testing.T) {
 		})
 
 		Convey("When everything is working", func() {
-			os.MkdirAll(filepath.Join(os.TempDir(), filepath.Dir(filename)), 0755)
-			os.MkdirAll(filepath.Join(os.TempDir(), filepath.Dir(filenameNoExt)), 0755)
-			CopyFile(cache.GetFileName(&filecache.DownloadRecord{Path: "somewhere/sample.pdf"}), "fixtures/sample.pdf", 0644)
-			CopyFile(cache.GetFileName(&filecache.DownloadRecord{Path: "somewhere/sample"}), "fixtures/sample.pdf", 0644)
+			os.MkdirAll(filepath.Dir(cache.GetFileName(dr)), 0755)
+			os.MkdirAll(filepath.Dir(cache.GetFileName(drNoExtension)), 0755)
+			CopyFile(cache.GetFileName(dr), "fixtures/sample.pdf", 0644)
+			CopyFile(cache.GetFileName(drNoExtension), "fixtures/sample.pdf", 0644)
 
 			recorder := httptest.NewRecorder()
 
@@ -366,7 +368,7 @@ func Test_EndToEnd(t *testing.T) {
 		})
 
 		Convey("When timestamps are supplied for cache busting", func() {
-			filename := cache.GetFileName(&filecache.DownloadRecord{Path: "somewhere/sample.pdf"})
+			filename := cache.GetFileName(dr)
 			os.MkdirAll(filepath.Dir(filename), 0755)
 			CopyFile(filename, "fixtures/sample.pdf", 0644)
 			recorder := httptest.NewRecorder()
