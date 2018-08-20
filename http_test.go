@@ -80,12 +80,14 @@ func Test_EndToEnd(t *testing.T) {
 			agent:       nil,
 		}
 
-		filename := "12/6090c594d41728a7d7ad1e1a4d58cd28.pdf"      // cache file for sample.pdf
-		filenameNoExt := "4d/6090c594d41728a7d7ad1e1a4d58cd28.pdf" // cache file for sample
+		dr, _ := filecache.NewDownloadRecord("/documents/somewhere/sample.pdf", nil)
+		So(cache.GetFileName(dr), ShouldEndWith, "12/c3e2cc0a00a4f64dfce9da6647d9ad84.pdf")
+		drNoExtension, _ := filecache.NewDownloadRecord("/documents/somewhere/sample", nil)
+		So(cache.GetFileName(drNoExtension), ShouldEndWith, "4d/6090c594d41728a7d7ad1e1a4d58cd28.pdf")
 
 		Reset(func() {
-			os.Remove(cache.GetFileName(&filecache.DownloadRecord{Path: "somewhere/sample.pdf"}))
-			os.Remove(cache.GetFileName(&filecache.DownloadRecord{Path: "somewhere/sample"}))
+			os.Remove(cache.GetFileName(dr))
+			os.Remove(cache.GetFileName(drNoExtension))
 		})
 
 		Convey("Handling error conditions", func() {
@@ -103,8 +105,8 @@ func Test_EndToEnd(t *testing.T) {
 			})
 
 			Convey("When the page is not contained in the document", func() {
-				os.MkdirAll(filepath.Join(os.TempDir(), filepath.Dir(filename)), 0755)
-				CopyFile(cache.GetFileName(&filecache.DownloadRecord{Path: "somewhere/sample.pdf"}), "fixtures/sample.pdf", 0644)
+				os.MkdirAll(filepath.Dir(cache.GetFileName(dr)), 0755)
+				CopyFile(cache.GetFileName(dr), "fixtures/sample.pdf", 0644)
 
 				req := httptest.NewRequest("GET", "/documents/somewhere/sample.pdf?page=10", nil)
 				recorder := httptest.NewRecorder()
@@ -114,8 +116,8 @@ func Test_EndToEnd(t *testing.T) {
 			})
 
 			Convey("When the page is not valid", func() {
-				os.MkdirAll(filepath.Join(os.TempDir(), filepath.Dir(filename)), 0755)
-				CopyFile(cache.GetFileName(&filecache.DownloadRecord{Path: "somewhere/sample.pdf"}), "fixtures/sample.pdf", 0644)
+				os.MkdirAll(filepath.Dir(cache.GetFileName(dr)), 0755)
+				CopyFile(cache.GetFileName(dr), "fixtures/sample.pdf", 0644)
 
 				req := httptest.NewRequest("GET", "/documents/somewhere/sample.pdf?page=-1", nil)
 				recorder := httptest.NewRecorder()
@@ -155,8 +157,8 @@ func Test_EndToEnd(t *testing.T) {
 			})
 
 			Convey("Doesn't accept negative width", func() {
-				os.MkdirAll(filepath.Join(os.TempDir(), filepath.Dir(filename)), 0755)
-				CopyFile(cache.GetFileName(&filecache.DownloadRecord{Path: "somewhere/sample.pdf"}), "fixtures/sample.pdf", 0644)
+				os.MkdirAll(filepath.Dir(cache.GetFileName(dr)), 0755)
+				CopyFile(cache.GetFileName(dr), "fixtures/sample.pdf", 0644)
 
 				req := httptest.NewRequest("GET", "/documents/somewhere/sample.pdf?page=1&width=-300", nil)
 				recorder := httptest.NewRecorder()
@@ -170,8 +172,8 @@ func Test_EndToEnd(t *testing.T) {
 			})
 
 			Convey("Doesn't accept crazy wide width", func() {
-				os.MkdirAll(filepath.Join(os.TempDir(), filepath.Dir(filename)), 0755)
-				CopyFile(cache.GetFileName(&filecache.DownloadRecord{Path: "somewhere/sample.pdf"}), "fixtures/sample.pdf", 0644)
+				os.MkdirAll(filepath.Dir(cache.GetFileName(dr)), 0755)
+				CopyFile(cache.GetFileName(dr), "fixtures/sample.pdf", 0644)
 
 				req := httptest.NewRequest("GET", "/documents/somewhere/sample.pdf?page=1&width=300000", nil)
 				recorder := httptest.NewRecorder()
@@ -198,10 +200,10 @@ func Test_EndToEnd(t *testing.T) {
 		})
 
 		Convey("When everything is working", func() {
-			os.MkdirAll(filepath.Join(os.TempDir(), filepath.Dir(filename)), 0755)
-			os.MkdirAll(filepath.Join(os.TempDir(), filepath.Dir(filenameNoExt)), 0755)
-			CopyFile(cache.GetFileName(&filecache.DownloadRecord{Path: "somewhere/sample.pdf"}), "fixtures/sample.pdf", 0644)
-			CopyFile(cache.GetFileName(&filecache.DownloadRecord{Path: "somewhere/sample"}), "fixtures/sample.pdf", 0644)
+			os.MkdirAll(filepath.Dir(cache.GetFileName(dr)), 0755)
+			os.MkdirAll(filepath.Dir(cache.GetFileName(drNoExtension)), 0755)
+			CopyFile(cache.GetFileName(dr), "fixtures/sample.pdf", 0644)
+			CopyFile(cache.GetFileName(drNoExtension), "fixtures/sample.pdf", 0644)
 
 			recorder := httptest.NewRecorder()
 
@@ -281,15 +283,21 @@ func Test_EndToEnd(t *testing.T) {
 			})
 
 			Convey("Sets the request HTTP headers in the DownloadRecord Args for recognised args", func() {
-				req := httptest.NewRequest("GET", "/documents/somewhere/sample.pdf?page=1", nil)
-				dummyArg := "DropboxAccessToken"
-				dummyVal := "ThouShaltNotPass"
-				req.Header.Add(dummyArg, dummyVal)
+				url, _ := url.Parse("/documents/dropbox/sample.pdf?page=1")
+				dummyToken := "DropboxAccessToken"
+				dummyTokenVal := "ThouShaltNotPass"
+				dr, _ := filecache.NewDownloadRecord(url.Path, map[string]string{dummyToken: dummyTokenVal})
+				os.MkdirAll(filepath.Dir(cache.GetFileName(dr)), 0755)
+				CopyFile(cache.GetFileName(dr), "fixtures/sample.pdf", 0644)
+				defer os.Remove(cache.GetFileName(dr))
+
+				req := httptest.NewRequest("GET", url.Path, nil)
+				req.Header.Add(dummyToken, dummyTokenVal)
 
 				isDummyArgSet := false
 				cache.DownloadFunc = func(dr *filecache.DownloadRecord, localPath string) error {
 					for arg, val := range dr.Args {
-						if arg == strings.ToLower(dummyArg) && val == dummyVal {
+						if arg == strings.ToLower(dummyToken) && val == dummyTokenVal {
 							isDummyArgSet = true
 						}
 					}
@@ -297,6 +305,7 @@ func Test_EndToEnd(t *testing.T) {
 				}
 
 				h.handleDocument(recorder, req)
+				So(recorder.Result().StatusCode, ShouldEqual, 200)
 				_, err := ioutil.ReadAll(recorder.Result().Body)
 				So(err, ShouldBeNil)
 				So(isDummyArgSet, ShouldBeTrue)
@@ -304,17 +313,22 @@ func Test_EndToEnd(t *testing.T) {
 
 			Convey("Fetches the file again if the recognised args differ", func() {
 				dummyToken := "DropboxAccessToken"
-				dummyTokenVal := "ThouShaltNotPass"
+				dummyTokenVal1 := "ThouShaltNotPass"
+				dummyTokenVal2 := "SaysWho?"
 				url, _ := url.Parse("/documents/dropbox/sample.pdf")
 
-				dr, _ := filecache.NewDownloadRecord(url.Path, map[string]string{dummyToken: dummyTokenVal})
+				dr, _ := filecache.NewDownloadRecord(url.Path, map[string]string{dummyToken: dummyTokenVal1})
 				os.MkdirAll(filepath.Dir(cache.GetFileName(dr)), 0755)
 				CopyFile(cache.GetFileName(dr), "fixtures/sample.pdf", 0644)
+				defer os.Remove(cache.GetFileName(dr))
 
+				dr, _ = filecache.NewDownloadRecord(url.Path, map[string]string{dummyToken: dummyTokenVal2})
+				os.MkdirAll(filepath.Dir(cache.GetFileName(dr)), 0755)
+				CopyFile(cache.GetFileName(dr), "fixtures/sample.pdf", 0644)
 				defer os.Remove(cache.GetFileName(dr))
 
 				req := httptest.NewRequest("GET", url.Path, nil)
-				req.Header.Set(dummyToken, dummyTokenVal)
+				req.Header.Set(dummyToken, dummyTokenVal1)
 
 				h.handleDocument(recorder, req)
 				So(recorder.Result().StatusCode, ShouldEqual, 200)
@@ -326,7 +340,7 @@ func Test_EndToEnd(t *testing.T) {
 				So(downloadCount, ShouldEqual, 1)
 
 				// We should download the file again if we use a different token
-				req.Header.Set(dummyToken, "SaysWho?")
+				req.Header.Set(dummyToken, dummyTokenVal2)
 				h.handleDocument(recorder, req)
 				So(recorder.Result().StatusCode, ShouldEqual, 200)
 				So(downloadCount, ShouldEqual, 2)
@@ -360,7 +374,7 @@ func Test_EndToEnd(t *testing.T) {
 		})
 
 		Convey("When timestamps are supplied for cache busting", func() {
-			filename := cache.GetFileName(&filecache.DownloadRecord{Path: "somewhere/sample.pdf"})
+			filename := cache.GetFileName(dr)
 			os.MkdirAll(filepath.Dir(filename), 0755)
 			CopyFile(filename, "fixtures/sample.pdf", 0644)
 			recorder := httptest.NewRecorder()
@@ -407,6 +421,79 @@ func Test_EndToEnd(t *testing.T) {
 				So(didDownload, ShouldBeFalse)
 
 			})
+		})
+	})
+}
+
+func Test_ListFilecache(t *testing.T) {
+	Convey("Testing handleListFilecache()", t, func() {
+		cache, _ := filecache.New(10, os.TempDir())
+		cache.DownloadFunc = func(downloadRecord *filecache.DownloadRecord, localPath string) error {
+			return nil
+		}
+
+		rasterCache, _ := NewRasterCache(1)
+		h := &RasterHttpServer{
+			cache:       cache,
+			rasterCache: rasterCache,
+		}
+
+		urlS3, _ := url.Parse("/documents/somewhere/sample.pdf")
+		drS3, _ := filecache.NewDownloadRecord(urlS3.Path, nil)
+		os.MkdirAll(filepath.Dir(cache.GetFileName(drS3)), 0755)
+		CopyFile(cache.GetFileName(drS3), "fixtures/sample.pdf", 0644)
+
+		urlDropbox, _ := url.Parse("/documents/dropbox/sample.pdf")
+		dummyToken := "DropboxAccessToken"
+		dummyTokenVal := "ThouShaltNotPass"
+		drDropbox, _ := filecache.NewDownloadRecord(urlDropbox.Path, map[string]string{dummyToken: dummyTokenVal})
+		os.MkdirAll(filepath.Dir(cache.GetFileName(drDropbox)), 0755)
+		CopyFile(cache.GetFileName(drDropbox), "fixtures/sample.pdf", 0644)
+
+		Reset(func() {
+			os.Remove(cache.GetFileName(drS3))
+			os.Remove(cache.GetFileName(drDropbox))
+		})
+
+		Convey("Handles a normal request when a few files are in the cache", func() {
+			recorder := httptest.NewRecorder()
+
+			req := httptest.NewRequest("GET", urlS3.Path, nil)
+			h.handleDocument(recorder, req)
+			So(recorder.Result().StatusCode, ShouldEqual, 200)
+
+			req = httptest.NewRequest("GET", urlDropbox.Path, nil)
+			req.Header.Set(dummyToken, dummyTokenVal)
+			h.handleDocument(recorder, req)
+			So(recorder.Result().StatusCode, ShouldEqual, 200)
+
+			recorder = httptest.NewRecorder()
+			h.handleListFilecache(recorder, nil)
+			So(recorder.Result().StatusCode, ShouldEqual, 200)
+
+			body, err := ioutil.ReadAll(recorder.Result().Body)
+			So(err, ShouldBeNil)
+
+			cacheEntries := []FilecacheEntry{}
+			err = json.Unmarshal(body, &cacheEntries)
+			So(err, ShouldBeNil)
+			So(len(cacheEntries), ShouldEqual, 2)
+			So(cacheEntries[0].Path, ShouldEqual, "somewhere/sample.pdf")
+			So(cacheEntries[0].StoragePath, ShouldEndWith, "12/c3e2cc0a00a4f64dfce9da6647d9ad84.pdf")
+			So(cacheEntries[0].LoadedInMemory, ShouldBeFalse)
+			So(cacheEntries[1].Path, ShouldEqual, "dropbox/sample.pdf_bf56c7da4cdec1809c81b2b91fd386d9")
+			So(cacheEntries[1].StoragePath, ShouldEndWith, "8f/880c3eeebde773ca3e3af30f3e175c90_bf56c7da4cdec1809c81b2b91fd386d9.pdf")
+			So(cacheEntries[1].LoadedInMemory, ShouldBeTrue)
+		})
+
+		Convey("Returns an empty result set when nothing is in the cache", func() {
+			recorder := httptest.NewRecorder()
+			h.handleListFilecache(recorder, nil)
+			So(recorder.Result().StatusCode, ShouldEqual, 200)
+
+			body, err := ioutil.ReadAll(recorder.Result().Body)
+			So(err, ShouldBeNil)
+			So(string(body), ShouldEqual, "[]")
 		})
 	})
 }
