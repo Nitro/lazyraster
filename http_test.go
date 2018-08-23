@@ -244,6 +244,37 @@ func Test_EndToEnd(t *testing.T) {
 				So(recorder.Result().Header["Content-Type"][0], ShouldEqual, "image/png")
 			})
 
+			Convey("Handles a svg", func() {
+				req := httptest.NewRequest("GET", "/documents/somewhere/sample.pdf?page=1&width=1024&quality=75&imageType=image/svg%2Bxml", nil)
+
+				h.handleDocument(recorder, req)
+				So(recorder.Result().StatusCode, ShouldEqual, 200)
+				So(recorder.Result().Header.Get("Content-Type"), ShouldEqual, "image/svg+xml")
+				So(recorder.Result().Header.Get("Content-Encoding"), ShouldBeBlank)
+
+				body, err := ioutil.ReadAll(recorder.Result().Body)
+				So(err, ShouldBeNil)
+				So(string(body), ShouldStartWith, `<?xml version="1.0" encoding="UTF-8" standalone="no"?>`)
+				So(string(body), ShouldContainSubstring, "</clipPath>")
+				So(string(body), ShouldEndWith, "</svg>\n")
+			})
+
+			Convey("Handles a svg with gzip compression", func() {
+				req := httptest.NewRequest("GET", "/documents/somewhere/sample.pdf?page=1&width=1024&quality=75&imageType=image/svg%2Bxml", nil)
+				req.Header.Add("Accept-Encoding", "gzip")
+
+				h.handleDocument(recorder, req)
+				So(recorder.Result().StatusCode, ShouldEqual, 200)
+				So(recorder.Result().Header.Get("Content-Type"), ShouldEqual, "image/svg+xml")
+				So(recorder.Result().Header.Get("Content-Encoding"), ShouldEqual, "gzip")
+				So(recorder.Result().Header.Get("Vary"), ShouldEqual, "Accept-Encoding")
+
+				body, err := ioutil.ReadAll(recorder.Result().Body)
+				So(err, ShouldBeNil)
+				So(len(body), ShouldBeGreaterThan, 1024)
+				So(len(body), ShouldBeLessThan, 131072)
+			})
+
 			Convey("Handles a bunch of options", func() {
 				req := httptest.NewRequest("GET", "/documents/somewhere/sample.pdf?page=1&scale=1.5&quality=75", nil)
 
