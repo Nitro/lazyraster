@@ -489,9 +489,11 @@ func releaseGzipWriter(gzw *gzip.Writer) error {
 	return nil
 }
 
-func writeSVG(w http.ResponseWriter, r *http.Request, svg []byte) error {
-	var err error
+// writeSVG writes the SVG data to the HTTP response
+func writeSVG(w http.ResponseWriter, r *http.Request, svg []byte) (err error) {
 	if supportsGzipEncoding(r) {
+		// Note: err is a named return value because we want to update it in a defer
+		// statement below, when releasing the gzip.Writer.
 		var gzw *gzip.Writer
 		gzw, err = acquireGzipWriter(w)
 		if err != nil {
@@ -499,14 +501,14 @@ func writeSVG(w http.ResponseWriter, r *http.Request, svg []byte) error {
 		}
 
 		w.Header().Add("Content-Encoding", "gzip")
-		// Allow intermediary services to cache different encodings for the same request
+		// Allow intermediary services to cache different encodings for the same request.
 		w.Header().Add("Vary", "Accept-Encoding")
 
 		// Closing the writer can sometimes return an error. We want to return this
 		// error if we don't already have an error from another place in this function.
 		defer func() {
 			errClose := releaseGzipWriter(gzw)
-			if err == nil {
+			if err == nil && errClose != nil {
 				err = fmt.Errorf("failed to release gzip writer: %s", errClose)
 			}
 		}()
@@ -520,7 +522,7 @@ func writeSVG(w http.ResponseWriter, r *http.Request, svg []byte) error {
 		return fmt.Errorf("failed to write SVG to response: %s", err)
 	}
 
-	return nil
+	return
 }
 
 // handleImage is an HTTP handler that responds to requests for pages

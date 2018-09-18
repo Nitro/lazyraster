@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -40,6 +41,22 @@ func CopyFile(dst, src string, perm os.FileMode) (err error) {
 	}()
 	_, err = io.Copy(out, in)
 	return
+}
+
+type CustomResponseRecorder struct {
+	httptest.ResponseRecorder
+	numSuccessfulWrites int
+	totalAllowedWrites  int
+}
+
+func (rw *CustomResponseRecorder) Write(buf []byte) (int, error) {
+	if rw.numSuccessfulWrites >= rw.totalAllowedWrites {
+		return 0, errors.New("write error")
+	}
+
+	rw.numSuccessfulWrites += 1
+
+	return rw.ResponseRecorder.Write(buf)
 }
 
 func Test_EndToEnd(t *testing.T) {
@@ -273,6 +290,43 @@ func Test_EndToEnd(t *testing.T) {
 				So(err, ShouldBeNil)
 				So(len(body), ShouldBeGreaterThan, 1024)
 				So(len(body), ShouldBeLessThan, 131072)
+			})
+
+			Convey("Returns the expected errors when writing gzip data", func() {
+				req := httptest.NewRequest("GET", "/documents/somewhere/sample.pdf?page=1&width=1024&quality=75&imageType=image/svg%2Bxml", nil)
+				req.Header.Add("Accept-Encoding", "gzip")
+
+				recorder := &CustomResponseRecorder{
+					ResponseRecorder: httptest.ResponseRecorder{
+						HeaderMap: make(http.Header),
+						Body:      new(bytes.Buffer),
+						Code:      200,
+					},
+				}
+
+				Convey("and the svg gzip writer finishes processing successfully", func() {
+					// Go will call recorder.Write() 4 times
+					recorder.totalAllowedWrites = 4
+					err := writeSVG(recorder, req, []byte{})
+
+					So(err, ShouldBeNil)
+				})
+
+				Convey("and the svg gzip writer can't write", func() {
+					recorder.totalAllowedWrites = 0
+					err := writeSVG(recorder, req, []byte{})
+
+					So(err, ShouldNotBeNil)
+					So(err.Error(), ShouldContainSubstring, "failed to write SVG to response: write error")
+				})
+
+				Convey("and the svg gzip writer can't be closed", func() {
+					recorder.totalAllowedWrites = 1
+					err := writeSVG(recorder, req, []byte{})
+
+					So(err, ShouldNotBeNil)
+					So(err.Error(), ShouldContainSubstring, "failed to release gzip writer: write error")
+				})
 			})
 
 			Convey("Handles a bunch of options", func() {
