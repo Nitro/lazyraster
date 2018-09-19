@@ -1,9 +1,11 @@
 package main
 
 import (
+	"compress/gzip"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"image"
 	"image/jpeg"
 	"image/png"
 	"net/http"
@@ -33,7 +35,8 @@ const (
 )
 
 var (
-	shutdownMutex sync.Mutex
+	shutdownMutex  sync.Mutex
+	gzipWriterPool sync.Pool
 )
 
 // RasterDocumentParams stores all the parameters from the web request that
@@ -92,6 +95,8 @@ func imageTypeForRequest(r *http.Request) string {
 			imageType = "image/jpeg"
 		case "image/png":
 			imageType = "image/png"
+		case "image/svg+xml":
+			imageType = "image/svg+xml"
 		default:
 			log.Warnf("Got invalid image type request: %s. Sending image/png", iType)
 			imageType = "image/png"
@@ -436,9 +441,92 @@ func (h *RasterHttpServer) handleDocumentInfo(w http.ResponseWriter, docParams *
 	w.Write(data)
 }
 
+func writeImage(w http.ResponseWriter, image image.Image, imgParams *RasterImageParams) error {
+	if imgParams.ImageType == "image/jpeg" {
+		return jpeg.Encode(w, image, &jpeg.Options{Quality: imgParams.ImageQuality})
+	}
+
+	return png.Encode(w, image)
+}
+
+// supportsGzipEncoding makes sure that we don't have any false positives
+// Inspired from https://groups.google.com/d/msg/golang-nuts/NVnqAzKbrKQ/6S9wR_zdg4EJ
+func supportsGzipEncoding(req *http.Request) bool {
+	for _, v := range strings.Split(strings.ToLower(req.Header.Get("Accept-Encoding")), ",") {
+		if strings.ToLower(strings.TrimSpace(v)) == "gzip" {
+			return true
+		}
+	}
+	return false
+}
+
+// acquireGzipWriter tries to return a cached gzip.Writer. It will create a new one
+// if none are available.
+func acquireGzipWriter(w http.ResponseWriter) (*gzip.Writer, error) {
+	cachedObject := gzipWriterPool.Get()
+	if cachedObject == nil {
+		return gzip.NewWriter(w), nil
+	}
+
+	gzw := cachedObject.(*gzip.Writer)
+	gzw.Reset(w)
+
+	return gzw, nil
+}
+
+// releaseGzipWriter returns a closed gzip.Writer to the gzip writer pool for reuse
+func releaseGzipWriter(gzw *gzip.Writer) error {
+	err := gzw.Close()
+
+	// I think it might be a bad idea to cache writers which errored when
+	// we tried to close them.
+	if err != nil {
+		return err
+	}
+
+	gzipWriterPool.Put(gzw)
+
+	return nil
+}
+
+// writeSVG writes the SVG data to the HTTP response
+func writeSVG(w http.ResponseWriter, r *http.Request, svg []byte) (err error) {
+	if supportsGzipEncoding(r) {
+		// Note: err is a named return value because we want to update it in a defer
+		// statement below, when releasing the gzip.Writer.
+		var gzw *gzip.Writer
+		gzw, err = acquireGzipWriter(w)
+		if err != nil {
+			return fmt.Errorf("failed to acquire gzip writer: %s", err)
+		}
+
+		w.Header().Add("Content-Encoding", "gzip")
+		// Allow intermediary services to cache different encodings for the same request.
+		w.Header().Add("Vary", "Accept-Encoding")
+
+		// Closing the writer can sometimes return an error. We want to return this
+		// error if we don't already have an error from another place in this function.
+		defer func() {
+			errClose := releaseGzipWriter(gzw)
+			if err == nil && errClose != nil {
+				err = fmt.Errorf("failed to release gzip writer: %s", errClose)
+			}
+		}()
+
+		_, err = gzw.Write(svg)
+	} else {
+		_, err = w.Write(svg)
+	}
+
+	if err != nil {
+		return fmt.Errorf("failed to write SVG to response: %s", err)
+	}
+
+	return
+}
+
 // handleImage is an HTTP handler that responds to requests for pages
 func (h *RasterHttpServer) handleImage(w http.ResponseWriter, r *http.Request, raster *lazypdf.Rasterizer, socketClosed *bool) {
-
 	t := h.beginTrace("handleImage")
 	defer h.endTrace(t)
 
@@ -448,8 +536,17 @@ func (h *RasterHttpServer) handleImage(w http.ResponseWriter, r *http.Request, r
 		return
 	}
 
-	// Actually render the page to a bitmap so we can encode to JPEG/PNG
-	image, err := raster.GeneratePage(imgParams.Page, imgParams.Width, imgParams.Scale)
+	var responseWriterFunc func() error
+	if imgParams.ImageType == "image/svg+xml" {
+		var svg []byte
+		svg, err = raster.GeneratePageSVG(imgParams.Page, imgParams.Width, imgParams.Scale)
+		responseWriterFunc = func() error { return writeSVG(w, r, svg) }
+	} else {
+		// Actually render the page to a bitmap so we can encode to JPEG/PNG
+		var image image.Image
+		image, err = raster.GeneratePageImage(imgParams.Page, imgParams.Width, imgParams.Scale)
+		responseWriterFunc = func() error { return writeImage(w, image, imgParams) }
+	}
 	if err != nil {
 		if lazypdf.IsBadPage(err) {
 			http.Error(w, fmt.Sprintf("Page is not part of this pdf: %s", err), 404)
@@ -470,12 +567,7 @@ func (h *RasterHttpServer) handleImage(w http.ResponseWriter, r *http.Request, r
 	w.Header().Set("Content-Type", imgParams.ImageType)
 	w.Header().Set("Cache-Control", fmt.Sprintf("max-age=%d", int64(SigningBucketSize)/1e9))
 
-	if imgParams.ImageType == "image/jpeg" {
-		err = jpeg.Encode(w, image, &jpeg.Options{Quality: imgParams.ImageQuality})
-	} else {
-		err = png.Encode(w, image)
-	}
-
+	err = responseWriterFunc()
 	if err != nil && !strings.Contains(err.Error(), "write: broken pipe") {
 		msg := fmt.Sprintf("Error while encoding image as '%s': %s", imgParams.ImageType, err)
 		log.Errorf(msg)
