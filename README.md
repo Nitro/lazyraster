@@ -7,6 +7,11 @@ A caching PDF rasterizer that uses a filecache and a hashring to distribute load
 
 MuPDF is the PDF engine that drives the rasterizer.
 
+License Restriction
+-------------------
+
+This project is released under an [MIT license](LICENSE), but it relies on the AGPL code from [lazypdf](https://github.com/Nitro/lazypdf). Therefore, running it must comply with the terms and conditions from [this license](https://github.com/Nitro/lazypdf/blob/master/LICENSE). Sorry about that!
+
 Building It
 -----------
 
