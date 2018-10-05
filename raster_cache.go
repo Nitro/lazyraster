@@ -9,11 +9,6 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// #cgo CFLAGS: -I../lazypdf -I../lazypdf/mupdf/include -I../lazypdf/mupdf/include/mupdf -I../lazypdf/mupdf/thirdparty/openjpeg -I../lazypdf/mupdf/thirdparty/jbig2dec -I../lazypdf/mupdf/thirdparty/zlib -I../lazypdf/mupdf/thirdparty/jpeg -I../lazypdf/mupdf/thirdparty/freetype
-// #cgo LDFLAGS: -L../lazypdf/mupdf/build/release -lmupdf -lmupdfthird -lm -lcrypto -lpthread
-// #include <faster_raster.h>
-import "C"
-
 const (
 	// DefaultRasterCacheSize is the default number of cahced rasterizers for open documents
 	DefaultRasterCacheSize = 20
