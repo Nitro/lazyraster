@@ -369,7 +369,7 @@ func Test_EndToEnd(t *testing.T) {
 
 			Convey("Sets the request HTTP headers in the DownloadRecord Args for recognised args", func() {
 				url, _ := url.Parse("/documents/dropbox/sample.pdf?page=1")
-				dummyToken := "DropboxAccessToken"
+				dummyToken := "authorization"
 				dummyTokenVal := "ThouShaltNotPass"
 				dr, _ := filecache.NewDownloadRecord(url.Path, map[string]string{dummyToken: dummyTokenVal})
 				os.MkdirAll(filepath.Dir(cache.GetFileName(dr)), 0755)
@@ -397,7 +397,7 @@ func Test_EndToEnd(t *testing.T) {
 			})
 
 			Convey("Fetches the file again if the recognised args differ", func() {
-				dummyToken := "DropboxAccessToken"
+				dummyToken := "authorization"
 				dummyTokenVal1 := "ThouShaltNotPass"
 				dummyTokenVal2 := "SaysWho?"
 				url, _ := url.Parse("/documents/dropbox/sample.pdf")
@@ -529,7 +529,7 @@ func Test_ListFilecache(t *testing.T) {
 		CopyFile(cache.GetFileName(drS3), "fixtures/sample.pdf", 0644)
 
 		urlDropbox, _ := url.Parse("/documents/dropbox/sample.pdf")
-		dummyToken := "DropboxAccessToken"
+		dummyToken := "authorization"
 		dummyTokenVal := "ThouShaltNotPass"
 		drDropbox, _ := filecache.NewDownloadRecord(urlDropbox.Path, map[string]string{dummyToken: dummyTokenVal})
 		os.MkdirAll(filepath.Dir(cache.GetFileName(drDropbox)), 0755)
