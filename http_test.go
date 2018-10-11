@@ -12,7 +12,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -367,70 +366,6 @@ func Test_EndToEnd(t *testing.T) {
 				So(meta.PageCount, ShouldEqual, 2)
 			})
 
-			Convey("Sets the request HTTP headers in the DownloadRecord Args for recognised args", func() {
-				url, _ := url.Parse("/documents/dropbox/sample.pdf?page=1")
-				dummyToken := "DropboxAccessToken"
-				dummyTokenVal := "ThouShaltNotPass"
-				dr, _ := filecache.NewDownloadRecord(url.Path, map[string]string{dummyToken: dummyTokenVal})
-				os.MkdirAll(filepath.Dir(cache.GetFileName(dr)), 0755)
-				CopyFile(cache.GetFileName(dr), "fixtures/sample.pdf", 0644)
-				defer os.Remove(cache.GetFileName(dr))
-
-				req := httptest.NewRequest("GET", url.Path, nil)
-				req.Header.Add(dummyToken, dummyTokenVal)
-
-				isDummyArgSet := false
-				cache.DownloadFunc = func(dr *filecache.DownloadRecord, localPath string) error {
-					for arg, val := range dr.Args {
-						if arg == strings.ToLower(dummyToken) && val == dummyTokenVal {
-							isDummyArgSet = true
-						}
-					}
-					return mockDownloader(dr, localPath)
-				}
-
-				h.handleDocument(recorder, req)
-				So(recorder.Result().StatusCode, ShouldEqual, 200)
-				_, err := ioutil.ReadAll(recorder.Result().Body)
-				So(err, ShouldBeNil)
-				So(isDummyArgSet, ShouldBeTrue)
-			})
-
-			Convey("Fetches the file again if the recognised args differ", func() {
-				dummyToken := "DropboxAccessToken"
-				dummyTokenVal1 := "ThouShaltNotPass"
-				dummyTokenVal2 := "SaysWho?"
-				url, _ := url.Parse("/documents/dropbox/sample.pdf")
-
-				dr, _ := filecache.NewDownloadRecord(url.Path, map[string]string{dummyToken: dummyTokenVal1})
-				os.MkdirAll(filepath.Dir(cache.GetFileName(dr)), 0755)
-				CopyFile(cache.GetFileName(dr), "fixtures/sample.pdf", 0644)
-				defer os.Remove(cache.GetFileName(dr))
-
-				dr, _ = filecache.NewDownloadRecord(url.Path, map[string]string{dummyToken: dummyTokenVal2})
-				os.MkdirAll(filepath.Dir(cache.GetFileName(dr)), 0755)
-				CopyFile(cache.GetFileName(dr), "fixtures/sample.pdf", 0644)
-				defer os.Remove(cache.GetFileName(dr))
-
-				req := httptest.NewRequest("GET", url.Path, nil)
-				req.Header.Set(dummyToken, dummyTokenVal1)
-
-				h.handleDocument(recorder, req)
-				So(recorder.Result().StatusCode, ShouldEqual, 200)
-				So(downloadCount, ShouldEqual, 1)
-
-				// It should be in the cache now
-				h.handleDocument(recorder, req)
-				So(recorder.Result().StatusCode, ShouldEqual, 200)
-				So(downloadCount, ShouldEqual, 1)
-
-				// We should download the file again if we use a different token
-				req.Header.Set(dummyToken, dummyTokenVal2)
-				h.handleDocument(recorder, req)
-				So(recorder.Result().StatusCode, ShouldEqual, 200)
-				So(downloadCount, ShouldEqual, 2)
-			})
-
 			Convey("Sets the appropriate CORS headers", func() {
 				req := httptest.NewRequest("GET", "/documents/somewhere/sample.pdf", nil)
 
@@ -529,9 +464,7 @@ func Test_ListFilecache(t *testing.T) {
 		CopyFile(cache.GetFileName(drS3), "fixtures/sample.pdf", 0644)
 
 		urlDropbox, _ := url.Parse("/documents/dropbox/sample.pdf")
-		dummyToken := "DropboxAccessToken"
-		dummyTokenVal := "ThouShaltNotPass"
-		drDropbox, _ := filecache.NewDownloadRecord(urlDropbox.Path, map[string]string{dummyToken: dummyTokenVal})
+		drDropbox, _ := filecache.NewDownloadRecord(urlDropbox.Path, nil)
 		os.MkdirAll(filepath.Dir(cache.GetFileName(drDropbox)), 0755)
 		CopyFile(cache.GetFileName(drDropbox), "fixtures/sample.pdf", 0644)
 
@@ -548,7 +481,6 @@ func Test_ListFilecache(t *testing.T) {
 			So(recorder.Result().StatusCode, ShouldEqual, 200)
 
 			req = httptest.NewRequest("GET", urlDropbox.Path, nil)
-			req.Header.Set(dummyToken, dummyTokenVal)
 			h.handleDocument(recorder, req)
 			So(recorder.Result().StatusCode, ShouldEqual, 200)
 
@@ -566,8 +498,8 @@ func Test_ListFilecache(t *testing.T) {
 			So(cacheEntries[0].Path, ShouldEqual, "somewhere/sample.pdf")
 			So(cacheEntries[0].StoragePath, ShouldEndWith, "12/c3e2cc0a00a4f64dfce9da6647d9ad84.pdf")
 			So(cacheEntries[0].LoadedInMemory, ShouldBeFalse)
-			So(cacheEntries[1].Path, ShouldEqual, "dropbox/sample.pdf_bf56c7da4cdec1809c81b2b91fd386d9")
-			So(cacheEntries[1].StoragePath, ShouldEndWith, "8f/880c3eeebde773ca3e3af30f3e175c90_bf56c7da4cdec1809c81b2b91fd386d9.pdf")
+			So(cacheEntries[1].Path, ShouldEqual, "dropbox/sample.pdf")
+			So(cacheEntries[1].StoragePath, ShouldEndWith, "8f/880c3eeebde773ca3e3af30f3e175c90.pdf")
 			So(cacheEntries[1].LoadedInMemory, ShouldBeTrue)
 		})
 

@@ -245,24 +245,11 @@ func (h *RasterHttpServer) handleClearRasterCache(w http.ResponseWriter, r *http
 	w.Write([]byte(`{"status": "OK"}`))
 }
 
-func getHTTPHeaders(r *http.Request) map[string]string {
-	if len(r.Header) == 0 {
-		return nil
-	}
-
-	headers := make(map[string]string, len(r.Header))
-	for header := range r.Header {
-		headers[header] = r.Header.Get(header)
-	}
-
-	return headers
-}
-
 func (h *RasterHttpServer) processDocumentParams(r *http.Request) (*RasterDocumentParams, int, error) {
 	var docParams RasterDocumentParams
 
 	var err error
-	docParams.DownloadRecord, err = filecache.NewDownloadRecord(r.URL.Path, getHTTPHeaders(r))
+	docParams.DownloadRecord, err = filecache.NewDownloadRecord(r.URL.Path, nil)
 	if err != nil {
 		return nil, 404, errors.New("Invalid URL path")
 	}

@@ -22,11 +22,11 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:bc7144ed6d489d0999078435e1ac0d4f0ca9208d705c2c95661e919897d21533"
+  digest = "1:06d33ff91243056074376d16c2dae86e3abd49d20bbc28c2b98e5c1bf692d8ec"
   name = "github.com/Nitro/filecache"
   packages = ["."]
   pruneopts = ""
-  revision = "73d8a900e775143db2a899414fed1bbd5b0551af"
+  revision = "0faaa3b6e9c526e080ce31531ff7422531a4750f"
 
 [[projects]]
   branch = "master"
@@ -82,7 +82,7 @@
   revision = "9a4b6e10bed6220a1665955aa2b75afc91eb10b3"
 
 [[projects]]
-  digest = "1:8af4889ebe06f8e68a2f30f38af0c2d593bc5f15a6f76fc2c97f2123e774545e"
+  digest = "1:4f4796d7e6e8a6c1b4d91d0c8a60e2a1b7420ab5148655635e807eaab3ee5ed9"
   name = "github.com/aws/aws-sdk-go"
   packages = [
     "aws",
@@ -95,14 +95,21 @@
     "aws/credentials/ec2rolecreds",
     "aws/credentials/endpointcreds",
     "aws/credentials/stscreds",
+    "aws/csm",
     "aws/defaults",
     "aws/ec2metadata",
     "aws/endpoints",
     "aws/request",
     "aws/session",
     "aws/signer/v4",
+    "internal/s3err",
+    "internal/sdkio",
+    "internal/sdkrand",
+    "internal/sdkuri",
     "internal/shareddefaults",
     "private/protocol",
+    "private/protocol/eventstream",
+    "private/protocol/eventstream/eventstreamapi",
     "private/protocol/query",
     "private/protocol/query/queryutil",
     "private/protocol/rest",
@@ -114,8 +121,8 @@
     "service/sts",
   ]
   pruneopts = ""
-  revision = "044a61f1536640ce1def6088c0914f5905990202"
-  version = "v1.12.12"
+  revision = "572272ee7c4503c8a32f79ec16b959c9e8a211c3"
+  version = "v1.15.55"
 
 [[projects]]
   branch = "v1"
@@ -194,19 +201,6 @@
   version = "v0.3.2"
 
 [[projects]]
-  digest = "1:2a99d23b565e06fe1930f444c53c066216f06465c8d1d097b691f23c169858ea"
-  name = "github.com/dropbox/dropbox-sdk-go-unofficial"
-  packages = [
-    "dropbox",
-    "dropbox/async",
-    "dropbox/file_properties",
-    "dropbox/files",
-  ]
-  pruneopts = ""
-  revision = "7afa861bfde5a348d765522b303b6fbd9d250155"
-  version = "v4.1.0"
-
-[[projects]]
   digest = "1:4aace94ccef304a40e76fdc0959453fbb2451f12599bf5b556c1ff42c20be681"
   name = "github.com/fsouza/go-dockerclient"
   packages = ["."]
@@ -229,14 +223,6 @@
   pruneopts = ""
   revision = "342cbe0a04158f6dcb03ca0079991a51a4248c02"
   version = "v0.5"
-
-[[projects]]
-  digest = "1:f958a1c137db276e52f0b50efee41a1a389dcdded59a69711f3e872757dab34b"
-  name = "github.com/golang/protobuf"
-  packages = ["proto"]
-  pruneopts = ""
-  revision = "b4deda0973fb4c70b50d226b1af49f3da59f5265"
-  version = "v1.1.0"
 
 [[projects]]
   branch = "master"
@@ -295,15 +281,15 @@
   revision = "41949a141473f6340abc6ba0fcd0f89da6f6f837"
 
 [[projects]]
-  branch = "master"
-  digest = "1:43987212a2f16bfacc1a286e9118f212d60c136ed53c6c9477c18921db53140b"
+  digest = "1:3313a63031ae281e5f6fd7b0bbca733dfa04d2429df86519e3b4d4c016ccb836"
   name = "github.com/hashicorp/golang-lru"
   packages = [
     ".",
     "simplelru",
   ]
   pruneopts = ""
-  revision = "0a025b7e63adc15a622f29b0b2c4c3848243bbf6"
+  revision = "20f1fb78b0740ba8c3cb143a61e86ba5c8669768"
+  version = "v0.5.0"
 
 [[projects]]
   digest = "1:6f49eae0c1e5dab1dafafee34b207aeb7a42303105960944828c2079b92fc88e"
@@ -327,6 +313,14 @@
   pruneopts = ""
   revision = "f611eb38b3875cc3bd991ca91c51d06446afa14c"
   version = "v1.3.0"
+
+[[projects]]
+  digest = "1:6a874e3ddfb9db2b42bd8c85b6875407c702fa868eed20634ff489bc896ccfd3"
+  name = "github.com/konsorten/go-windows-terminal-sequences"
+  packages = ["."]
+  pruneopts = ""
+  revision = "5c8c8bd35d3832f5d134ae1e1e375b69a4d25242"
+  version = "v1.0.1"
 
 [[projects]]
   branch = "master"
@@ -429,12 +423,12 @@
   revision = "6a9381c5a83e926b9f1fd907395a581e69747e96"
 
 [[projects]]
-  digest = "1:3ac248add5bb40a3c631c5334adcd09aa72d15af2768a5bc0274084ea7b2e5ba"
+  digest = "1:5f48b818f16848d05cf74f4cbdd0cbe9e0dcddb3c459b4c510c6e2c8e1b4dff1"
   name = "github.com/sirupsen/logrus"
   packages = ["."]
   pruneopts = ""
-  revision = "f006c2ac4710855cf0f916dd6b77acf6b048dc6e"
-  version = "v1.0.3"
+  revision = "ad15b42461921f1fb3529b058c6786c6a45d5162"
+  version = "v1.1.1"
 
 [[projects]]
   digest = "1:fbf54e9f8cf26ea8e66dc1e0cc615663efa95af8c8d806125ff7f7bb7311b9e0"
@@ -504,17 +498,6 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:a8172cf4304ef01f0c7dd634c331880247d10f9e28b041821f2321a8e4bb3b7c"
-  name = "golang.org/x/oauth2"
-  packages = [
-    ".",
-    "internal",
-  ]
-  pruneopts = ""
-  revision = "3d292e4d0cdc3a0113e6d207bb137145ef1de42f"
-
-[[projects]]
-  branch = "master"
   digest = "1:592c05f04f63351794bf9ed84492a1057285bd82d0c1eb1972cc200345f00d95"
   name = "golang.org/x/sys"
   packages = [
@@ -523,22 +506,6 @@
   ]
   pruneopts = ""
   revision = "8dbc5d05d6edcc104950cc299a1ce6641235bc86"
-
-[[projects]]
-  digest = "1:c1771ca6060335f9768dff6558108bc5ef6c58506821ad43377ee23ff059e472"
-  name = "google.golang.org/appengine"
-  packages = [
-    "internal",
-    "internal/base",
-    "internal/datastore",
-    "internal/log",
-    "internal/remote_api",
-    "internal/urlfetch",
-    "urlfetch",
-  ]
-  pruneopts = ""
-  revision = "b1f26356af11148e710935ed1ac8a7f5702c7612"
-  version = "v1.1.0"
 
 [solve-meta]
   analyzer-name = "dep"
