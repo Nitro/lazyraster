@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -40,6 +41,21 @@ func CopyFile(dst, src string, perm os.FileMode) (err error) {
 	}()
 	_, err = io.Copy(out, in)
 	return
+}
+
+func CopyFileToWriter(dst io.Writer, src string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+
+	_, err = io.Copy(dst, in)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 type CustomResponseRecorder struct {
@@ -441,6 +457,44 @@ func Test_EndToEnd(t *testing.T) {
 				So(didDownload, ShouldBeFalse)
 
 			})
+		})
+
+		Convey("Handles a Dropbox request", func() {
+			// Set up a real Dropbox cache
+			dropboxCache, _ := filecache.New(1, os.TempDir(), filecache.DownloadTimeout(100*time.Millisecond),
+				filecache.DefaultExtension(".pdf"),
+				filecache.DropboxDownloader(),
+			)
+			h.cache = dropboxCache
+
+			// Create a mock HTTP server which reads a PDF file and serves it on the default endpoint
+			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				err := CopyFileToWriter(w, "fixtures/sample.pdf")
+				if err != nil {
+					http.Error(w, "error reading file", 500)
+				}
+			}))
+			defer ts.Close()
+
+			path := fmt.Sprintf(
+				"/documents/dropbox/%s",
+				base64.StdEncoding.EncodeToString([]byte(ts.URL)),
+			)
+
+			req := httptest.NewRequest("GET", path, nil)
+
+			recorder := httptest.NewRecorder()
+			h.handleDocument(recorder, req)
+
+			body, err := ioutil.ReadAll(recorder.Result().Body)
+			So(err, ShouldBeNil)
+			So(recorder.Result().StatusCode, ShouldEqual, 200)
+
+			var meta DocumentMetadata
+			err = json.Unmarshal(body, &meta)
+			So(err, ShouldBeNil)
+			So(meta.Filename, ShouldStartWith, "dropbox/")
+			So(meta.PageCount, ShouldEqual, 2)
 		})
 	})
 }
