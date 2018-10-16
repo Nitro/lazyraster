@@ -8,6 +8,7 @@ import (
 	"image"
 	"image/jpeg"
 	"image/png"
+	"io"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
@@ -227,7 +228,10 @@ func (h *RasterHttpServer) handleListFilecache(w http.ResponseWriter, _ *http.Re
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	w.Write(data)
+	_, err = w.Write(data)
+	if err != nil {
+		log.Errorf("failed to send payload to client: %s", err)
+	}
 }
 
 // handleClearRasterCache allows us to manually clear out the raster cache
@@ -242,7 +246,10 @@ func (h *RasterHttpServer) handleClearRasterCache(w http.ResponseWriter, r *http
 	h.rasterCache.Purge()
 
 	w.Header().Set("Content-Type", "application/json")
-	w.Write([]byte(`{"status": "OK"}`))
+	_, err := io.WriteString(w, `{"status": "OK"}`)
+	if err != nil {
+		log.Errorf("failed to send payload to client: %s", err)
+	}
 }
 
 func (h *RasterHttpServer) processDocumentParams(r *http.Request) (*RasterDocumentParams, int, error) {
@@ -390,13 +397,13 @@ func (h *RasterHttpServer) handleDocument(w http.ResponseWriter, r *http.Request
 	// or newly constructed by the cache.
 	raster, err := h.rasterCache.GetRasterizer(docParams.StoragePath)
 	if err != nil {
-		log.Errorf("Unable to get rasterizer for %s: '%s'", docParams.StoragePath, err)
+		log.Errorf("Unable to get rasterizer for %s: %s", docParams.StoragePath, err)
 		http.Error(w, "Error encountered while processing pdf", 500)
 		return
 	}
 
 	if socketClosed {
-		log.Infof("Socket closed by client, aborting request for '%s'", r.URL.Path)
+		log.Infof("Socket closed by client, aborting request for %q", r.URL.Path)
 		return
 	}
 
@@ -409,7 +416,6 @@ func (h *RasterHttpServer) handleDocument(w http.ResponseWriter, r *http.Request
 	}
 
 	h.handleImage(w, r, raster, &socketClosed)
-	return
 }
 
 func (h *RasterHttpServer) handleDocumentInfo(w http.ResponseWriter, docParams *RasterDocumentParams, raster *lazypdf.Rasterizer) {
@@ -425,7 +431,10 @@ func (h *RasterHttpServer) handleDocumentInfo(w http.ResponseWriter, docParams *
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	w.Write(data)
+	_, err = w.Write(data)
+	if err != nil {
+		log.Errorf("failed to send payload to client: %s", err)
+	}
 }
 
 func writeImage(w http.ResponseWriter, image image.Image, imgParams *RasterImageParams) error {
@@ -547,7 +556,7 @@ func (h *RasterHttpServer) handleImage(w http.ResponseWriter, r *http.Request, r
 	}
 
 	if *socketClosed {
-		log.Infof("Socket closed by client, aborting request for '%s'", r.URL.Path)
+		log.Infof("Socket closed by client, aborting request for %q", r.URL.Path)
 		return
 	}
 
@@ -556,7 +565,7 @@ func (h *RasterHttpServer) handleImage(w http.ResponseWriter, r *http.Request, r
 
 	err = responseWriterFunc()
 	if err != nil && !strings.Contains(err.Error(), "write: broken pipe") {
-		msg := fmt.Sprintf("Error while encoding image as '%s': %s", imgParams.ImageType, err)
+		msg := fmt.Sprintf("Error while encoding image as %q: %s", imgParams.ImageType, err)
 		log.Errorf(msg)
 		http.Error(w, msg, 500)
 	}
@@ -591,11 +600,17 @@ func (h *RasterHttpServer) handleHealth(w http.ResponseWriter, r *http.Request) 
 
 	if !h.ring.Manager().Ping() {
 		w.WriteHeader(503)
-		w.Write(data)
+		_, err = w.Write(data)
+		if err != nil {
+			log.Errorf("failed to send payload to client: %s", err)
+		}
 		return
 	}
 
-	w.Write(data)
+	_, err = w.Write(data)
+	if err != nil {
+		log.Errorf("failed to send payload to client: %s", err)
+	}
 }
 
 // handleShutdown creates an HTTP handler for triggering a soft shutdown
@@ -618,8 +633,10 @@ func (h *RasterHttpServer) handleShutdown(w http.ResponseWriter, r *http.Request
 	go h.cache.Cache.Purge()
 
 	w.Header().Set("Content-Type", "application/json")
-	w.Write([]byte(`{"status": "OK"}`))
-
+	_, err := io.WriteString(w, `{"status": "OK"}`)
+	if err != nil {
+		log.Errorf("failed to send payload to client: %s", err)
+	}
 }
 
 // configureServer sets up an http.Server with Read and Write timeouts, and

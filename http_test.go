@@ -137,8 +137,10 @@ func Test_EndToEnd(t *testing.T) {
 			})
 
 			Convey("When the page is not contained in the document", func() {
-				os.MkdirAll(filepath.Dir(cache.GetFileName(dr)), 0755)
-				CopyFile(cache.GetFileName(dr), "fixtures/sample.pdf", 0644)
+				err := os.MkdirAll(filepath.Dir(cache.GetFileName(dr)), 0755)
+				So(err, ShouldBeNil)
+				err = CopyFile(cache.GetFileName(dr), "fixtures/sample.pdf", 0644)
+				So(err, ShouldBeNil)
 
 				req := httptest.NewRequest("GET", "/documents/somewhere/sample.pdf?page=10", nil)
 				recorder := httptest.NewRecorder()
@@ -148,8 +150,10 @@ func Test_EndToEnd(t *testing.T) {
 			})
 
 			Convey("When the page is not valid", func() {
-				os.MkdirAll(filepath.Dir(cache.GetFileName(dr)), 0755)
-				CopyFile(cache.GetFileName(dr), "fixtures/sample.pdf", 0644)
+				err := os.MkdirAll(filepath.Dir(cache.GetFileName(dr)), 0755)
+				So(err, ShouldBeNil)
+				err = CopyFile(cache.GetFileName(dr), "fixtures/sample.pdf", 0644)
+				So(err, ShouldBeNil)
 
 				req := httptest.NewRequest("GET", "/documents/somewhere/sample.pdf?page=-1", nil)
 				recorder := httptest.NewRecorder()
@@ -189,8 +193,10 @@ func Test_EndToEnd(t *testing.T) {
 			})
 
 			Convey("Doesn't accept negative width", func() {
-				os.MkdirAll(filepath.Dir(cache.GetFileName(dr)), 0755)
-				CopyFile(cache.GetFileName(dr), "fixtures/sample.pdf", 0644)
+				err := os.MkdirAll(filepath.Dir(cache.GetFileName(dr)), 0755)
+				So(err, ShouldBeNil)
+				err = CopyFile(cache.GetFileName(dr), "fixtures/sample.pdf", 0644)
+				So(err, ShouldBeNil)
 
 				req := httptest.NewRequest("GET", "/documents/somewhere/sample.pdf?page=1&width=-300", nil)
 				recorder := httptest.NewRecorder()
@@ -204,8 +210,10 @@ func Test_EndToEnd(t *testing.T) {
 			})
 
 			Convey("Doesn't accept crazy wide width", func() {
-				os.MkdirAll(filepath.Dir(cache.GetFileName(dr)), 0755)
-				CopyFile(cache.GetFileName(dr), "fixtures/sample.pdf", 0644)
+				err := os.MkdirAll(filepath.Dir(cache.GetFileName(dr)), 0755)
+				So(err, ShouldBeNil)
+				err = CopyFile(cache.GetFileName(dr), "fixtures/sample.pdf", 0644)
+				So(err, ShouldBeNil)
 
 				req := httptest.NewRequest("GET", "/documents/somewhere/sample.pdf?page=1&width=300000", nil)
 				recorder := httptest.NewRecorder()
@@ -232,10 +240,14 @@ func Test_EndToEnd(t *testing.T) {
 		})
 
 		Convey("When everything is working", func() {
-			os.MkdirAll(filepath.Dir(cache.GetFileName(dr)), 0755)
-			os.MkdirAll(filepath.Dir(cache.GetFileName(drNoExtension)), 0755)
-			CopyFile(cache.GetFileName(dr), "fixtures/sample.pdf", 0644)
-			CopyFile(cache.GetFileName(drNoExtension), "fixtures/sample.pdf", 0644)
+			err := os.MkdirAll(filepath.Dir(cache.GetFileName(dr)), 0755)
+			So(err, ShouldBeNil)
+			err = os.MkdirAll(filepath.Dir(cache.GetFileName(drNoExtension)), 0755)
+			So(err, ShouldBeNil)
+			err = CopyFile(cache.GetFileName(dr), "fixtures/sample.pdf", 0644)
+			So(err, ShouldBeNil)
+			err = CopyFile(cache.GetFileName(drNoExtension), "fixtures/sample.pdf", 0644)
+			So(err, ShouldBeNil)
 
 			recorder := httptest.NewRecorder()
 
@@ -411,14 +423,18 @@ func Test_EndToEnd(t *testing.T) {
 
 		Convey("When timestamps are supplied for cache busting", func() {
 			filename := cache.GetFileName(dr)
-			os.MkdirAll(filepath.Dir(filename), 0755)
-			CopyFile(filename, "fixtures/sample.pdf", 0644)
+			err := os.MkdirAll(filepath.Dir(filename), 0755)
+			So(err, ShouldBeNil)
+			err = CopyFile(filename, "fixtures/sample.pdf", 0644)
+			So(err, ShouldBeNil)
 			recorder := httptest.NewRecorder()
 
 			cache.Cache.Add("somewhere/sample.pdf", filename)
 			// On reload the file gets evicted/deleted so we need to put it back
 			reloadableDownloader := func(dr *filecache.DownloadRecord, localPath string) error {
-				CopyFile(filename, "fixtures/sample.pdf", 0644)
+				errCopy := CopyFile(filename, "fixtures/sample.pdf", 0644)
+				So(errCopy, ShouldBeNil)
+
 				return mockDownloader(dr, localPath)
 			}
 			cache.DownloadFunc = reloadableDownloader
@@ -514,13 +530,17 @@ func Test_ListFilecache(t *testing.T) {
 
 		urlS3, _ := url.Parse("/documents/somewhere/sample.pdf")
 		drS3, _ := filecache.NewDownloadRecord(urlS3.Path, nil)
-		os.MkdirAll(filepath.Dir(cache.GetFileName(drS3)), 0755)
-		CopyFile(cache.GetFileName(drS3), "fixtures/sample.pdf", 0644)
+		err := os.MkdirAll(filepath.Dir(cache.GetFileName(drS3)), 0755)
+		So(err, ShouldBeNil)
+		err = CopyFile(cache.GetFileName(drS3), "fixtures/sample.pdf", 0644)
+		So(err, ShouldBeNil)
 
 		urlDropbox, _ := url.Parse("/documents/dropbox/sample.pdf")
 		drDropbox, _ := filecache.NewDownloadRecord(urlDropbox.Path, nil)
-		os.MkdirAll(filepath.Dir(cache.GetFileName(drDropbox)), 0755)
-		CopyFile(cache.GetFileName(drDropbox), "fixtures/sample.pdf", 0644)
+		err = os.MkdirAll(filepath.Dir(cache.GetFileName(drDropbox)), 0755)
+		So(err, ShouldBeNil)
+		err = CopyFile(cache.GetFileName(drDropbox), "fixtures/sample.pdf", 0644)
+		So(err, ShouldBeNil)
 
 		Reset(func() {
 			os.Remove(cache.GetFileName(drS3))

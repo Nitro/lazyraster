@@ -105,15 +105,13 @@ func configureMesosMappings(config *Config) error {
 	return nil
 }
 
-// Set up some signal handling for kill/term/int and try to exit the
+// Set up some signal handling for term/int and try to exit the
 // cluster and clean out the cache before we exit.
 func handleSignals(fCache *filecache.FileCache, ring ringman.Ring) {
 	sigChan := make(chan os.Signal, 1) // Buffered!
 
 	// Grab some signals we want to catch where possible
-	signal.Notify(sigChan, os.Interrupt)
-	signal.Notify(sigChan, os.Kill)
-	signal.Notify(sigChan, syscall.SIGTERM)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
 	sig := <-sigChan
 	log.Warnf("Received signal '%s', attempting clean shutdown", sig)
@@ -158,7 +156,11 @@ func configureNewRelic() *gorelic.Agent {
 	agent.CollectHTTPStatuses = true
 	agent.CollectHTTPStat = true
 	agent.NewrelicLicense = nrLicense
-	agent.Run()
+	err := agent.Run()
+	if err != nil {
+		log.Errorf("Failed to start NewRelic agent: %s", err)
+		return nil
+	}
 
 	return agent
 }
