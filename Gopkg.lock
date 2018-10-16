@@ -22,11 +22,11 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:06d33ff91243056074376d16c2dae86e3abd49d20bbc28c2b98e5c1bf692d8ec"
+  digest = "1:180eb6e820622420606d00b898467e27e66882f60ba08f9e92dd357baf6c3fc8"
   name = "github.com/Nitro/filecache"
   packages = ["."]
   pruneopts = ""
-  revision = "0faaa3b6e9c526e080ce31531ff7422531a4750f"
+  revision = "a7eb55c4a05a94c2966d14ad6497edfe454c001f"
 
 [[projects]]
   branch = "master"
