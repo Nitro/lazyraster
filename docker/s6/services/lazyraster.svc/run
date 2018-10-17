@@ -23,7 +23,7 @@ fi
 # Namespace the lazyraster cache folder using the container ID, which we read from ${HOSTNAME}
 # This is needed because multiple lazyraster containers can run on the same machine.
 export RASTER_BASE_DIR="${RASTER_BASE_DIR}/${HOSTNAME}"
-mkdir ${RASTER_BASE_DIR}
+mkdir -p ${RASTER_BASE_DIR}
 
 echo "Launching Lazyraster service..."
 /lazyraster/lazyraster
