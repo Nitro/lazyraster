@@ -494,7 +494,7 @@ func Test_EndToEnd(t *testing.T) {
 
 			path := fmt.Sprintf(
 				"/documents/dropbox/%s",
-				base64.StdEncoding.EncodeToString([]byte(ts.URL)),
+				base64.RawURLEncoding.EncodeToString([]byte(ts.URL)),
 			)
 
 			req := httptest.NewRequest("GET", path, nil)
