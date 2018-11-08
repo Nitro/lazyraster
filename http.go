@@ -161,12 +161,24 @@ func timestampForRequest(r *http.Request) time.Time {
 	return time.Unix(int64(timestamp), 0)
 }
 
+type Clock interface {
+	Now() time.Time
+}
+
+type utcClock struct {
+}
+
+func (c *utcClock) Now() time.Time {
+	return time.Now().UTC()
+}
+
 type RasterHttpServer struct {
 	cache       *filecache.FileCache
 	rasterCache *RasterCache
 	ring        ringman.Ring
 	urlSecret   string
 	agent       *gorelic.Agent
+	clock       Clock
 }
 
 // beginTrace is a safe wrapper around the New Relic agent tracer
@@ -192,7 +204,7 @@ func (h *RasterHttpServer) isValidSignature(url string, w http.ResponseWriter) b
 		return true
 	}
 
-	if !urlsign.IsValidSignature(h.urlSecret, SigningBucketSize, time.Now().UTC(), url) {
+	if !urlsign.IsValidSignature(h.urlSecret, SigningBucketSize, h.clock.Now(), url) {
 		http.Error(w, "Invalid signature!", 403)
 		return false
 	}
@@ -666,7 +678,7 @@ func serveHttp(config *Config, cache *filecache.FileCache, ring ringman.Ring,
 	}
 
 	if len(urlSecret) < 1 {
-		log.Warn("No URL signing secret was passed... running in insecure mode!")
+		log.Warn("No URL signing secret was passed... Running in insecure mode!")
 	}
 
 	h := &RasterHttpServer{
@@ -675,6 +687,7 @@ func serveHttp(config *Config, cache *filecache.FileCache, ring ringman.Ring,
 		rasterCache: rasterCache,
 		urlSecret:   urlSecret,
 		agent:       agent,
+		clock:       &utcClock{},
 	}
 
 	// We have to wrap this to make LoggingHandler happy
@@ -699,10 +712,10 @@ func serveHttp(config *Config, cache *filecache.FileCache, ring ringman.Ring,
 	// ------------------------------------------------------------------------
 
 	server := configureServer(config, mux)
-	err := server.ListenAndServe()
 
+	err := server.ListenAndServe()
 	if err != nil {
-		return errors.New("Unable to serve Http: " + err.Error())
+		return fmt.Errorf("Unable to serve Http: %s", err)
 	}
 
 	return nil

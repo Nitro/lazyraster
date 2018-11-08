@@ -74,6 +74,12 @@ func (rw *CustomResponseRecorder) Write(buf []byte) (int, error) {
 	return rw.ResponseRecorder.Write(buf)
 }
 
+type dummyClock struct{}
+
+func (*dummyClock) Now() time.Time {
+	return time.Date(2018, 6, 6, 6, 0, 0, 0, time.UTC)
+}
+
 func Test_EndToEnd(t *testing.T) {
 	Convey("End-to-end testing handleDocument()", t, func() {
 		didDownload := false
@@ -110,6 +116,7 @@ func Test_EndToEnd(t *testing.T) {
 			rasterCache: rasterCache,
 			urlSecret:   "",
 			agent:       nil,
+			clock:       &dummyClock{},
 		}
 
 		dr, _ := filecache.NewDownloadRecord("/documents/somewhere/sample.pdf", nil)
@@ -258,10 +265,35 @@ func Test_EndToEnd(t *testing.T) {
 
 				body, err := ioutil.ReadAll(recorder.Result().Body)
 				So(err, ShouldBeNil)
-				So(len(body), ShouldBeGreaterThan, 1024)
 				So(recorder.Result().StatusCode, ShouldEqual, 200)
 				So(didDownload, ShouldBeTrue)
 				So(downloadCount, ShouldEqual, 1)
+				So(len(body), ShouldBeGreaterThan, 1024)
+			})
+
+			Convey("Handles a signed request", func() {
+				req := httptest.NewRequest("GET", "/documents/somewhere/sample.pdf?page=1&token=b4647ba1f2eec8744623c3ea918922dfdba8cebf", nil)
+				h.urlSecret = "thou_shalt_not_pass"
+				h.handleDocument(recorder, req)
+
+				body, err := ioutil.ReadAll(recorder.Result().Body)
+				So(err, ShouldBeNil)
+				So(recorder.Result().StatusCode, ShouldEqual, 200)
+				So(didDownload, ShouldBeTrue)
+				So(downloadCount, ShouldEqual, 1)
+				So(len(body), ShouldBeGreaterThan, 1024)
+			})
+
+			Convey("Handles a signed request when running in insecure mode with an empty URL secret", func() {
+				req := httptest.NewRequest("GET", "/documents/somewhere/sample.pdf?page=1&token=a35de6e0bd8edc93dd5fd4d95b137cda3aab763e", nil)
+				h.handleDocument(recorder, req)
+
+				body, err := ioutil.ReadAll(recorder.Result().Body)
+				So(err, ShouldBeNil)
+				So(recorder.Result().StatusCode, ShouldEqual, 200)
+				So(didDownload, ShouldBeTrue)
+				So(downloadCount, ShouldEqual, 1)
+				So(len(body), ShouldBeGreaterThan, 1024)
 			})
 
 			Convey("Handles a jpeg", func() {
@@ -271,9 +303,9 @@ func Test_EndToEnd(t *testing.T) {
 
 				body, err := ioutil.ReadAll(recorder.Result().Body)
 				So(err, ShouldBeNil)
-				So(len(body), ShouldBeGreaterThan, 1024)
 				So(recorder.Result().StatusCode, ShouldEqual, 200)
 				So(recorder.Result().Header["Content-Type"][0], ShouldEqual, "image/jpeg")
+				So(len(body), ShouldBeGreaterThan, 1024)
 			})
 
 			Convey("Handles a png", func() {
@@ -283,9 +315,9 @@ func Test_EndToEnd(t *testing.T) {
 
 				body, err := ioutil.ReadAll(recorder.Result().Body)
 				So(err, ShouldBeNil)
-				So(len(body), ShouldBeGreaterThan, 1024)
 				So(recorder.Result().StatusCode, ShouldEqual, 200)
 				So(recorder.Result().Header["Content-Type"][0], ShouldEqual, "image/png")
+				So(len(body), ShouldBeGreaterThan, 1024)
 			})
 
 			Convey("Handles a svg", func() {
@@ -363,8 +395,8 @@ func Test_EndToEnd(t *testing.T) {
 
 				body, err := ioutil.ReadAll(recorder.Result().Body)
 				So(err, ShouldBeNil)
-				So(len(body), ShouldBeGreaterThan, 1024)
 				So(recorder.Result().StatusCode, ShouldEqual, 200)
+				So(len(body), ShouldBeGreaterThan, 1024)
 			})
 
 			Convey("Handles a file with no file extension", func() {
@@ -374,8 +406,8 @@ func Test_EndToEnd(t *testing.T) {
 
 				body, err := ioutil.ReadAll(recorder.Result().Body)
 				So(err, ShouldBeNil)
-				So(len(body), ShouldBeGreaterThan, 1024) // We really did get an image
 				So(recorder.Result().StatusCode, ShouldEqual, 200)
+				So(len(body), ShouldBeGreaterThan, 1024) // We really did get an image
 			})
 
 			Convey("Returns document metadata when no page number is specified", func() {
