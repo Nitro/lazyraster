@@ -39,7 +39,7 @@ type Config struct {
 	SidecarUrl              string   `envconfig:"SIDECAR_URL" default:"http://192.168.168.168:7777/api/state.json"`
 	SidecarServiceName      string   `envconfig:"SIDECAR_SERVICE_NAME" default:"lazyraster"`
 	SidecarServicePort      int64    `envconfig:"SIDECAR_SERVICE_PORT" default:"10110"`
-	UrlSigningSecret        string   `envconfig:"URL_SIGNING_SECRET"`
+	UrlSigningSecret        string   `envconfig:"URL_SIGNING_SECRET" default:"deadbeef"`
 	RasterCacheSize         int      `envconfig:"RASTER_CACHE_SIZE" default:"20"`
 	LoggingLevel            string   `envconfig:"LOGGING_LEVEL" default:"info"`
 }
@@ -269,6 +269,6 @@ func main() {
 
 	err = serveHttp(&config, fCache, ring, rasterCache, config.UrlSigningSecret, agent)
 	if err != nil {
-		panic(err.Error())
+		log.Fatalf("Failed to start HTTP server: %s", err)
 	}
 }

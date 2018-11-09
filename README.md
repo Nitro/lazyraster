@@ -53,7 +53,7 @@ variables. These include the following:
  * `RASTER_CLUSTER_NAME`: The name of the Memberlist cluster.
  * `RASTER_ADVERTISE_MEMBERLIST_HOST`: The IP / hostname advertised by Memberlist.
  * `RASTER_ADVERTISE_MEMBERLIST_PORT`: The port advertised by Memberlist.
- * `RASTER_URL_SIGNING_SECRET`: A secret to use when validating signed URLs (optional).
+ * `RASTER_URL_SIGNING_SECRET`: A secret to use when validating signed URLs (default: `deadbeef`). Set it to empty string to disable signature validation.
  * `RASTER_LOGGING_LEVEL`: The cut off level for log messages. (`debug`, `info`, `warn`, `error`)
  * `RASTER_RING_TYPE`: Use `sidecar` or `memberlist` backing for hash ring? (default: `sidecar`)
  * `RASTER_SIDECAR_SERVICE_NAME`: The name to lookup in Sidecar when using Sidecar backing.
