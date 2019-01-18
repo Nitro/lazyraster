@@ -25,4 +25,4 @@ export RASTER_BASE_DIR="${RASTER_BASE_DIR}/${HOSTNAME}"
 mkdir -p ${RASTER_BASE_DIR}
 
 echo "Launching Lazyraster service..."
-/lazyraster/lazyraster
+exec /lazyraster/lazyraster
