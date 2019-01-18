@@ -1,5 +1,3 @@
 #!/bin/sh
 
-. $(dirname $0)/mark_for_cleanup.sh
-
 echo "Container shutting down"
