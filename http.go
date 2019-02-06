@@ -465,16 +465,16 @@ func supportsGzipEncoding(req *http.Request) bool {
 
 // acquireGzipWriter tries to return a cached gzip.Writer. It will create a new one
 // if none are available.
-func acquireGzipWriter(w http.ResponseWriter) (*gzip.Writer, error) {
+func acquireGzipWriter(w http.ResponseWriter) *gzip.Writer {
 	cachedObject := gzipWriterPool.Get()
 	if cachedObject == nil {
-		return gzip.NewWriter(w), nil
+		return gzip.NewWriter(w)
 	}
 
 	gzw := cachedObject.(*gzip.Writer)
 	gzw.Reset(w)
 
-	return gzw, nil
+	return gzw
 }
 
 // releaseGzipWriter returns a closed gzip.Writer to the gzip writer pool for reuse
@@ -493,15 +493,11 @@ func releaseGzipWriter(gzw *gzip.Writer) error {
 }
 
 // writeSVG writes the SVG data to the HTTP response
+// Note: err is a named return value because we want to update it in a defer
+// statement below, when releasing the gzip.Writer.
 func writeSVG(w http.ResponseWriter, r *http.Request, svg []byte) (err error) {
 	if supportsGzipEncoding(r) {
-		// Note: err is a named return value because we want to update it in a defer
-		// statement below, when releasing the gzip.Writer.
-		var gzw *gzip.Writer
-		gzw, err = acquireGzipWriter(w)
-		if err != nil {
-			return fmt.Errorf("failed to acquire gzip writer: %s", err)
-		}
+		gzw := acquireGzipWriter(w)
 
 		w.Header().Add("Content-Encoding", "gzip")
 		// Allow intermediary services to cache different encodings for the same request.
