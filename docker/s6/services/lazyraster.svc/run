@@ -16,7 +16,7 @@ if [ -d "${RASTER_BASE_DIR}" ]; then
 	) &
 else
 	echo "Error: Folder '${RASTER_BASE_DIR}' wasn't volume mounted on the host"
-	return 1
+	exit 1
 fi
 
 # Namespace the lazyraster cache folder using the container ID, which we read from ${HOSTNAME}
