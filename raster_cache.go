@@ -42,7 +42,7 @@ func NewRasterCache(size int) (*RasterCache, error) {
 
 // GetRasterizer will either return a cached rasterizer for the filename in
 // question, or will create a new one and then cache it.
-func (r *RasterCache) GetRasterizer(filename string) (*lazypdf.Rasterizer, error) {
+func (r *RasterCache) GetRasterizer(filename string, rasterBufferSize int) (*lazypdf.Rasterizer, error) {
 	var raster *lazypdf.Rasterizer
 	r.rasterLock.Lock()
 	defer r.rasterLock.Unlock()
@@ -54,7 +54,7 @@ func (r *RasterCache) GetRasterizer(filename string) (*lazypdf.Rasterizer, error
 
 	log.Debugf("Initializing new rasterizer for %s", filename)
 
-	raster = lazypdf.NewRasterizer(filename)
+	raster = lazypdf.NewRasterizer(filename, rasterBufferSize)
 	err := raster.Run()
 	if err != nil {
 		return nil, fmt.Errorf("Can't run rasterizer for %s: %s", filename, err)

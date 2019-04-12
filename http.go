@@ -173,12 +173,13 @@ func (c *utcClock) Now() time.Time {
 }
 
 type RasterHttpServer struct {
-	cache       *filecache.FileCache
-	rasterCache *RasterCache
-	ring        ringman.Ring
-	urlSecret   string
-	agent       *gorelic.Agent
-	clock       Clock
+	cache            *filecache.FileCache
+	rasterCache      *RasterCache
+	ring             ringman.Ring
+	urlSecret        string
+	agent            *gorelic.Agent
+	clock            Clock
+	rasterBufferSize int
 }
 
 // beginTrace is a safe wrapper around the New Relic agent tracer
@@ -402,7 +403,7 @@ func (h *RasterHttpServer) handleDocument(w http.ResponseWriter, r *http.Request
 
 	// Get ahold of a rasterizer for this document either from the cache
 	// or newly constructed by the cache.
-	raster, err := h.rasterCache.GetRasterizer(docParams.StoragePath)
+	raster, err := h.rasterCache.GetRasterizer(docParams.StoragePath, h.rasterBufferSize)
 	if err != nil {
 		log.Errorf("Unable to get rasterizer for %s: %s", docParams.StoragePath, err)
 		http.Error(w, "Error encountered while processing pdf", 500)
@@ -538,12 +539,12 @@ func (h *RasterHttpServer) handleImage(w http.ResponseWriter, r *http.Request, r
 	var responseWriterFunc func() error
 	if imgParams.ImageType == "image/svg+xml" {
 		var svg []byte
-		svg, err = raster.GeneratePageSVG(imgParams.Page, imgParams.Width, imgParams.Scale)
+		svg, err = raster.GeneratePageSVG(r.Context(), imgParams.Page, imgParams.Width, imgParams.Scale)
 		responseWriterFunc = func() error { return writeSVG(w, r, svg) }
 	} else {
 		// Actually render the page to a bitmap so we can encode to JPEG/PNG
 		var image image.Image
-		image, err = raster.GeneratePageImage(imgParams.Page, imgParams.Width, imgParams.Scale)
+		image, err = raster.GeneratePageImage(r.Context(), imgParams.Page, imgParams.Width, imgParams.Scale)
 		responseWriterFunc = func() error { return writeImage(w, image, imgParams) }
 	}
 	if err != nil {
@@ -678,12 +679,13 @@ func serveHttp(config *Config, cache *filecache.FileCache, ring ringman.Ring,
 	}
 
 	h := &RasterHttpServer{
-		cache:       cache,
-		ring:        ring,
-		rasterCache: rasterCache,
-		urlSecret:   urlSecret,
-		agent:       agent,
-		clock:       &utcClock{},
+		cache:            cache,
+		ring:             ring,
+		rasterCache:      rasterCache,
+		urlSecret:        urlSecret,
+		agent:            agent,
+		clock:            &utcClock{},
+		rasterBufferSize: config.RasterBufferSize,
 	}
 
 	// We have to wrap this to make LoggingHandler happy

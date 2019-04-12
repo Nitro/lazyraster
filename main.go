@@ -41,6 +41,7 @@ type Config struct {
 	SidecarServicePort      int64    `envconfig:"SIDECAR_SERVICE_PORT" default:"10110"`
 	UrlSigningSecret        string   `envconfig:"URL_SIGNING_SECRET" default:"deadbeef"`
 	RasterCacheSize         int      `envconfig:"RASTER_CACHE_SIZE" default:"20"`
+	RasterBufferSize        int      `envconfig:"RASTER_BUFFER_SIZE" default:"10"`
 	LoggingLevel            string   `envconfig:"LOGGING_LEVEL" default:"info"`
 }
 
