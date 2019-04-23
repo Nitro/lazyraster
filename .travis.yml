@@ -1,7 +1,7 @@
 language: go
 
 go:
-  - 1.10.x
+  - 1.12.x
 
 sudo: required
 
@@ -10,33 +10,21 @@ services:
 
 before_install:
   - sudo apt-get install -y ca-certificates
-  - curl -sfL https://install.goreleaser.com/github.com/golangci/golangci-lint.sh | sh -s -- -b $GOPATH/bin v1.10.2
-  - go get -d github.com/Nitro/lazypdf && (cd ${GOPATH}/src/github.com/Nitro/lazypdf && SHALLOW_CLONE=true ./build)
+#   - curl -sfL https://install.goreleaser.com/github.com/golangci/golangci-lint.sh | sh -s -- -b $GOPATH/bin v1.10.2
+#   - (mkdir -p ${GOPATH}/src/github.com/Nitro && cd ${GOPATH}/src/github.com/Nitro && git clone -b idempotent-scale-factor https://github.com/mihaitodor/lazypdf && cd lazypdf && SHALLOW_CLONE=true ./build)
 
-install:
-  - go get github.com/golang/dep/cmd/dep && dep ensure
+install: true
 
 script:
-  - golangci-lint run
-  - go test -v -race --timeout 30s ./... && go build
-  - if [ "$TRAVIS_BRANCH" == "master" ] && [ "${TRAVIS_GO_VERSION::4}" == "${PRODUCTION_GO_VERSION}" ]; then
-      echo "Building container gonitro/lazyraster:${TRAVIS_COMMIT::7}" &&
-      cp lazyraster docker/ &&
-      (cd docker && docker build -t lazyraster .) &&
-      docker tag lazyraster gonitro/lazyraster:${TRAVIS_COMMIT::7} &&
-      docker tag lazyraster gonitro/lazyraster:latest;
-    fi
+  - echo OK
 
 after_success:
-  - docker login -u="$DOCKER_USERNAME" -p="$DOCKER_PASSWORD"
-  - echo "Building on Go version ${TRAVIS_GO_VERSION} for branch ${TRAVIS_BRANCH}"
-  - if [ "$TRAVIS_BRANCH" == "master" ] && [ "${TRAVIS_GO_VERSION::4}" == "${PRODUCTION_GO_VERSION}" ]; then
-      echo "Pushing container gonitro/lazyraster:${TRAVIS_COMMIT::7}" &&
-      docker push gonitro/lazyraster:${TRAVIS_COMMIT::7};
-    fi
-  - if [ "$TRAVIS_BRANCH" == "master" ] && [ "${TRAVIS_GO_VERSION::4}" == "${PRODUCTION_GO_VERSION}" ] && [ -z "${NO_PUSH_LATEST}" ]; then
-      docker push gonitro/lazyraster:latest;
-    fi
+  - docker login --username "${DOCKER_USERNAME}" --password "${DOCKER_PASSWORD}"
+  # - echo "Building on Go version ${TRAVIS_GO_VERSION} for branch ${TRAVIS_BRANCH}"
+  # - if [ "${TRAVIS_GO_VERSION::4}" == "${PRODUCTION_GO_VERSION}" ]; then
+  #     echo "Pushing container gonitro/lazyraster:${TRAVIS_COMMIT::7}" &&
+  #     docker push gonitro/lazyraster:${TRAVIS_COMMIT::7};
+  #   fi
 
 deploy:
   provider: releases
