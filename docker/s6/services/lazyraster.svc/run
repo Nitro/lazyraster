@@ -1,8 +1,36 @@
 #!/bin/sh
 
 # Clean up cached files left behind by any previous containers using a background
-# job if ${RASTER_BASE_DIR} is volume mounted on the host
+# job if ${RASTER_BASE_DIR} is volume mounted on the host.
+# Note: This will *NOT* clean up cached files from the current container, in case
+# Lazyraster crashes and gets restarted by s6. This case is handled further below.
 if [ -d "${RASTER_BASE_DIR}" ]; then
+	(
+		# Select only the subfolders of ${RASTER_BASE_DIR}
+		for dir in "${RASTER_BASE_DIR}"/*/; do
+			# ${dir} will contain a trailing slash
+			if [ -f "${dir}container_stopped" ]; then
+				# First remove any temp files from the folder
+				find "${dir}" -mindepth 1 -type f ! -name "container_stopped" -delete && \
+				# Then remove the folder itself
+				rm -r "${dir}"
+			fi
+		done
+	) &
+else
+	echo "Error: Folder '${RASTER_BASE_DIR}' wasn't volume mounted on the host"
+	exit 1
+fi
+
+# Namespace the Lazyraster cache folder using the container ID, which we read from ${HOSTNAME}
+# This is needed because multiple Lazyraster containers can run on the same machine.
+export RASTER_BASE_DIR="${RASTER_BASE_DIR}/${HOSTNAME}"
+
+if [ ! -d "${RASTER_BASE_DIR}" ]; then
+	mkdir -p ${RASTER_BASE_DIR}
+else
+	# If lazyraster crashes, then s6 will restart it, so we need to clean up cached files
+	# left behind by the previous instance of Lazyraster.
 	NOW=$(date +%s)
 	(
 		# Delete old cached PDF files
@@ -14,15 +42,7 @@ if [ -d "${RASTER_BASE_DIR}" ]; then
 		#   process each directory's contents before the directory itself.
 		find "${RASTER_BASE_DIR}" -mindepth 1 -type d -empty \! -newermt "@${NOW}" -delete
 	) &
-else
-	echo "Error: Folder '${RASTER_BASE_DIR}' wasn't volume mounted on the host"
-	exit 1
 fi
-
-# Namespace the lazyraster cache folder using the container ID, which we read from ${HOSTNAME}
-# This is needed because multiple lazyraster containers can run on the same machine.
-export RASTER_BASE_DIR="${RASTER_BASE_DIR}/${HOSTNAME}"
-mkdir -p ${RASTER_BASE_DIR}
 
 echo "Launching Lazyraster service..."
 /lazyraster/lazyraster
