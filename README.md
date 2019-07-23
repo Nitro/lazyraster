@@ -33,6 +33,12 @@ Installing the dependencies is:
 dep ensure
 ```
 
+Updating a package dependency using dep. Example with
+[Nitro/filecache](https://github.com/Nitro/filecache) package:
+```
+dep ensure -update github.com/Nitro/filecache
+```
+
 You can then build this project builds with a simple `go build`.
 
 Running It
