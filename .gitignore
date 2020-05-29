@@ -3,3 +3,5 @@
 /lazyraster
 /*.pdf
 /vendor
+*.iml
+.idea/

@@ -112,7 +112,6 @@ func Test_EndToEnd(t *testing.T) {
 
 		h := &RasterHttpServer{
 			cache:       cache,
-			ring:        nil, // Don't test with ringman for now
 			rasterCache: rasterCache,
 			urlSecret:   "",
 			agent:       nil,

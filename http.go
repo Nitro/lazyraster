@@ -19,7 +19,6 @@ import (
 
 	"github.com/Nitro/filecache"
 	"github.com/Nitro/lazypdf"
-	"github.com/Nitro/ringman"
 	"github.com/Nitro/urlsign"
 	"github.com/gorilla/handlers"
 	log "github.com/sirupsen/logrus"
@@ -175,7 +174,6 @@ func (c *utcClock) Now() time.Time {
 type RasterHttpServer struct {
 	cache            *filecache.FileCache
 	rasterCache      *RasterCache
-	ring             ringman.Ring
 	urlSecret        string
 	agent            *gorelic.Agent
 	clock            Clock
@@ -215,11 +213,6 @@ func (h *RasterHttpServer) isValidSignature(url string, w http.ResponseWriter) b
 
 // handleListFilecache lists the contents of the disk cache along with the in memory status of each entry
 func (h *RasterHttpServer) handleListFilecache(w http.ResponseWriter, _ *http.Request) {
-	if h.ring != nil && !h.ring.Manager().Ping() {
-		http.Error(w, "Node is offline", 503)
-		return
-	}
-
 	payload := make([]FilecacheEntry, 0, h.cache.Cache.Len())
 	for _, key := range h.cache.Cache.Keys() {
 		if storagePath, ok := h.cache.Cache.Get(key); ok {
@@ -250,11 +243,6 @@ func (h *RasterHttpServer) handleListFilecache(w http.ResponseWriter, _ *http.Re
 // handleClearRasterCache allows us to manually clear out the raster cache
 func (h *RasterHttpServer) handleClearRasterCache(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
-
-	if !h.ring.Manager().Ping() {
-		http.Error(w, "Node is offline", 503)
-		return
-	}
 
 	h.rasterCache.Purge()
 
@@ -354,12 +342,6 @@ func (h *RasterHttpServer) handleDocument(w http.ResponseWriter, r *http.Request
 	docParams, status, err := h.processDocumentParams(r)
 	if err != nil {
 		http.Error(w, err.Error(), status)
-		return
-	}
-
-	// Prevent the node from caching any new documents if it has been marked as offline
-	if h.ring != nil && !h.ring.Manager().Ping() && !h.cache.Contains(docParams.DownloadRecord) {
-		http.Error(w, "Node is offline", 503)
 		return
 	}
 
@@ -580,9 +562,6 @@ func (h *RasterHttpServer) handleHealth(w http.ResponseWriter, r *http.Request) 
 	defer r.Body.Close()
 
 	status := "OK"
-	if !h.ring.Manager().Ping() {
-		status = "Offline"
-	}
 
 	healthData := struct {
 		Status          string
@@ -602,15 +581,6 @@ func (h *RasterHttpServer) handleHealth(w http.ResponseWriter, r *http.Request) 
 
 	w.Header().Set("Content-Type", "application/json")
 
-	if !h.ring.Manager().Ping() {
-		w.WriteHeader(503)
-		_, err = w.Write(data)
-		if err != nil {
-			log.Errorf("failed to send payload to client: %s", err)
-		}
-		return
-	}
-
 	_, err = w.Write(data)
 	if err != nil {
 		log.Errorf("failed to send payload to client: %s", err)
@@ -626,14 +596,8 @@ func (h *RasterHttpServer) handleShutdown(w http.ResponseWriter, r *http.Request
 	shutdownMutex.Lock()
 	defer shutdownMutex.Unlock()
 
-	if !h.ring.Manager().Ping() {
-		http.Error(w, "Node is offline", 503)
-		return
-	}
-
 	log.Warnf("Shutdown triggered via HTTP")
 
-	h.ring.Shutdown()
 	go h.cache.Cache.Purge()
 
 	w.Header().Set("Content-Type", "application/json")
@@ -655,7 +619,7 @@ func configureServer(config *Config, mux http.Handler) *http.Server {
 	}
 }
 
-func serveHttp(config *Config, cache *filecache.FileCache, ring ringman.Ring,
+func serveHttp(config *Config, cache *filecache.FileCache,
 	rasterCache *RasterCache, urlSecret string, agent *gorelic.Agent) error {
 
 	// Protect against garbage configuration
@@ -680,7 +644,6 @@ func serveHttp(config *Config, cache *filecache.FileCache, ring ringman.Ring,
 
 	h := &RasterHttpServer{
 		cache:            cache,
-		ring:             ring,
 		rasterCache:      rasterCache,
 		urlSecret:        urlSecret,
 		agent:            agent,
@@ -697,16 +660,11 @@ func serveHttp(config *Config, cache *filecache.FileCache, ring ringman.Ring,
 	// ------------------------------------------------------------------------
 	mux := http.DefaultServeMux
 	mux.HandleFunc("/favicon.ico", http.NotFound) // Browsers look for this
-	mux.Handle("/hashring/", http.StripPrefix("/hashring", ring.HttpMux()))
 	mux.HandleFunc("/health", handle(h.handleHealth))
 	mux.HandleFunc("/filecache/list", handle(h.handleListFilecache))
 	mux.HandleFunc("/rastercache/purge", handle(h.handleClearRasterCache))
 	mux.HandleFunc("/shutdown", handle(h.handleShutdown))
 	mux.Handle("/documents/", handlers.LoggingHandler(os.Stdout, docHandler))
-	if config.RingType == "sidecar" {
-		log.Info("Attaching Sidecar http handlers")
-		mux.Handle("/sidecar/update", http.StripPrefix("/sidecar", ring.HttpMux()))
-	}
 	// ------------------------------------------------------------------------
 
 	server := configureServer(config, mux)

@@ -5,4 +5,4 @@ if [[ `uname -s` == "Darwin" ]]; then
         export CGO_LDFLAGS="-L/usr/local/opt/openssl@1.1/lib"
 fi
 
-go build
+go test
