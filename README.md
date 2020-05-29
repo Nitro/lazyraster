@@ -50,18 +50,8 @@ variables. These include the following:
 
  * `RASTER_BASE_DIR`: The location where cached files are to be stored and served (default `.`)
  * `RASTER_HTTP_PORT`: The port to listen on for HTTP connections (default `8000`)
- * `RASTER_ADVERTISE_HTTP_PORT`: The advertised host port which gets mapped to RASTER_HTTP_PORT (default `8000`)
- * `RASTER_AWS_REGION`: The AWS Region fallback to use when S3 region lookup fails (default `us-west-1`)
- * `RASTER_CLUSTER_SEEDS`: The seeds to use to start the gossip ring
+ * `RASTER_AWS_REGION`: The AWS Region fallback to use when S3 region lookup fails (default `eu-central-1`)
  * `RASTER_CACHE_SIZE`: The number of file objects to cache on disk at any one time. (default `512`)
- * `RASTER_REDIS_PORT`: The port on which to serve Redis protocol traffic (default `6379`)
- * `RASTER_CLUSTER_NAME`: The name of the Memberlist cluster (default `default`)
- * `RASTER_RING_TYPE`: Use `sidecar` or `memberlist` backing for hash ring? (default: `sidecar`)
- * `RASTER_ADVERTISE_MEMBERLIST_HOST`: The IP / hostname advertised by Memberlist
- * `RASTER_ADVERTISE_MEMBERLIST_PORT`: The port advertised by Memberlist (default `7946`)
- * `RASTER_SIDECAR_URL`: The Sidecar state URL (default: `http://192.168.168.168:7777/api/state.json`)
- * `RASTER_SIDECAR_SERVICE_NAME`: The name to lookup in Sidecar when using Sidecar backing (default `lazyraster`)
- * `RASTER_SIDECAR_SERVICE_PORT`: The port to lookup in Sidecar when using Sidecar backing (default `10110`)
  * `RASTER_URL_SIGNING_SECRET`: A secret to use when validating signed URLs (default: `deadbeef`). Set it to empty string to disable signature validation.
  * `RASTER_RASTER_CACHE_SIZE`: The number of Rasterizer objects to cache in memory at any one time (default `20`)
  * `RASTER_RASTER_BUFFER_SIZE`: The maximum number of raster requests to queue (default `10`)
@@ -92,14 +82,10 @@ If you are running this locally for development purposes, you will probably
 want to use the following options to get started:
 
 ```bash
-$ RASTER_RING_TYPE=memberlist RASTER_LOGGING_LEVEL=debug ./lazyraster
+$ RASTER_URL_SIGNING_SECRET="" RASTER_LOGGING_LEVEL=debug ./lazyraster
 ```
-
-This will use the Memberlist clustering library and not require an external
-Sidecar service discovery system. It will also enable debug logging level which
-can help in understanding where things went wrong.
 
 Copyright
 ---------
 
-Copyright (c) 2017-2018 Nitro Software.
+Copyright (c) 2017-2020 Nitro Software.

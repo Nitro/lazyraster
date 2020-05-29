@@ -26,14 +26,6 @@ ignored = ["github.com/Nitro/lazypdf"]
 
 [[constraint]]
   branch = "master"
-  name = "github.com/Nitro/memberlist"
-
-[[constraint]]
-  branch = "master"
-  name = "github.com/Nitro/ringman"
-
-[[constraint]]
-  branch = "master"
   name = "github.com/Nitro/filecache"
 
 [[constraint]]

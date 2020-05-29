@@ -2,16 +2,12 @@ package main
 
 import (
 	"fmt"
-	"net"
 	"os"
 	"os/signal"
-	"strconv"
 	"syscall"
 	"time"
 
 	"github.com/Nitro/filecache"
-	"github.com/Nitro/memberlist"
-	"github.com/Nitro/ringman"
 	"github.com/kelseyhightower/envconfig"
 	"github.com/relistan/rubberneck"
 	log "github.com/sirupsen/logrus"
@@ -20,7 +16,6 @@ import (
 
 const (
 	ShutdownTimeout    = 10 * time.Second
-	MemberlistBindPort = 7946
 )
 
 // Config contains the application configuration parameters
@@ -28,17 +23,8 @@ type Config struct {
 	BaseDir                 string   `envconfig:"BASE_DIR" default:"."`
 	HttpPort                int      `envconfig:"HTTP_PORT" default:"8000"`
 	AdvertiseHttpPort       int      `envconfig:"ADVERTISE_HTTP_PORT" default:"8000"`
-	AwsRegion               string   `envconfig:"AWS_REGION" default:"us-west-1"`
-	ClusterSeeds            []string `envconfig:"CLUSTER_SEEDS"`
+	AwsRegion               string   `envconfig:"AWS_REGION" default:"eu-central-1"`
 	CacheSize               int      `envconfig:"CACHE_SIZE" default:"512"`
-	RedisPort               int      `envconfig:"REDIS_PORT" default:"6379"`
-	ClusterName             string   `envconfig:"CLUSTER_NAME" default:"default"`
-	RingType                string   `envconfig:"RING_TYPE" default:"sidecar"`
-	AdvertiseMemberlistHost string   `envconfig:"ADVERTISE_MEMBERLIST_HOST"`
-	AdvertiseMemberlistPort int      `envconfig:"ADVERTISE_MEMBERLIST_PORT" default:"7946"`
-	SidecarUrl              string   `envconfig:"SIDECAR_URL" default:"http://192.168.168.168:7777/api/state.json"`
-	SidecarServiceName      string   `envconfig:"SIDECAR_SERVICE_NAME" default:"lazyraster"`
-	SidecarServicePort      int64    `envconfig:"SIDECAR_SERVICE_PORT" default:"10110"`
 	UrlSigningSecret        string   `envconfig:"URL_SIGNING_SECRET" default:"deadbeef"`
 	RasterCacheSize         int      `envconfig:"RASTER_CACHE_SIZE" default:"20"`
 	RasterBufferSize        int      `envconfig:"RASTER_BUFFER_SIZE" default:"10"`
@@ -61,54 +47,9 @@ func configureLoggingLevel(config *Config) {
 	}
 }
 
-func findMesosOverrideFor(port int, defaultPort int) (int, error) {
-	if mesosPort, ok := os.LookupEnv("MESOS_PORT_" + strconv.Itoa(port)); ok {
-		p, err := strconv.Atoi(mesosPort)
-		if err != nil {
-			return 0, fmt.Errorf("failed to parse the Mesos mapped port for '%d': %s", port, err)
-		}
-
-		return p, nil
-	}
-
-	// If we can't find a corresponding Mesos variable, return the input port
-	return defaultPort, nil
-}
-
-func configureMesosMappings(config *Config) error {
-	if hostname, ok := os.LookupEnv("MESOS_HOSTNAME"); ok {
-		// The Memberlist AdvertiseAddr requires an IP address
-		ipAddr, err := net.LookupIP(hostname)
-		if err != nil {
-			return fmt.Errorf("Failed to resolve the Mesos hostname '%s' IP: %s", hostname, err)
-		}
-
-		// Use the first resolved IP and assume it's the one we want...
-		config.AdvertiseMemberlistHost = ipAddr[0].String()
-	}
-
-	// Try to fetch the port mapped by Mesos for the Lazyraster HTTP bind port
-	// This port will be stored Memberlist
-	var err error
-	config.AdvertiseHttpPort, err =
-		findMesosOverrideFor(config.HttpPort, config.AdvertiseHttpPort)
-	if err != nil {
-		return err
-	}
-
-	// Try to fetch the port mapped by Mesos for the Memberlist bind port
-	config.AdvertiseMemberlistPort, err =
-		findMesosOverrideFor(MemberlistBindPort, config.AdvertiseMemberlistPort)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
 // Set up some signal handling for term/int and try to exit the
 // cluster and clean out the cache before we exit.
-func handleSignals(fCache *filecache.FileCache, ring ringman.Ring) {
+func handleSignals(fCache *filecache.FileCache) {
 	sigChan := make(chan os.Signal, 1) // Buffered!
 
 	// Grab some signals we want to catch where possible
@@ -116,9 +57,6 @@ func handleSignals(fCache *filecache.FileCache, ring ringman.Ring) {
 
 	sig := <-sigChan
 	log.Warnf("Received signal '%s', attempting clean shutdown", sig)
-
-	// Stop the hashring and memberlist
-	ring.Shutdown()
 
 	waitChan := make(chan struct{}, 1)
 	fCache.PurgeAsync(waitChan)
@@ -166,33 +104,6 @@ func configureNewRelic() *gorelic.Agent {
 	return agent
 }
 
-// configureRing configures a ringman implementation using the right
-// setup based on config.RingType
-func configureRing(config *Config) (ringman.Ring, error) {
-	switch config.RingType {
-	case "memberlist":
-		mlConfig := memberlist.DefaultLANConfig()
-
-		mlConfig.BindPort = MemberlistBindPort
-		mlConfig.AdvertiseAddr = config.AdvertiseMemberlistHost
-		mlConfig.AdvertisePort = config.AdvertiseMemberlistPort
-		if config.AdvertiseMemberlistHost != "" {
-			mlConfig.Name = config.AdvertiseMemberlistHost
-		}
-
-		return ringman.NewMemberlistRing(
-			mlConfig,
-			config.ClusterSeeds, strconv.Itoa(config.AdvertiseHttpPort), config.ClusterName,
-		)
-	case "sidecar":
-		return ringman.NewSidecarRing(
-			config.SidecarUrl, config.SidecarServiceName, config.SidecarServicePort,
-		)
-	default:
-		return nil, fmt.Errorf("Unknown RingType '%s'", config.RingType)
-	}
-}
-
 func main() {
 	var config Config
 
@@ -203,21 +114,10 @@ func main() {
 
 	configureLoggingLevel(&config)
 
-	err = configureMesosMappings(&config)
-	if err != nil {
-		log.Fatalf("Failed set the Mesos config: %s", err)
-	}
-
 	rubberneck.NewPrinter(log.Infof, rubberneck.NoAddLineFeed).Print(config)
 
 	// New Relic
 	agent := configureNewRelic()
-
-	var ring ringman.Ring
-	ring, err = configureRing(&config)
-	if err != nil {
-		log.Fatalf("Unable to establish hashring ring ('%s': %s", config.RingType, err)
-	}
 
 	// Set up a rasterizer cache (in memory, keeps open documents ready to go)
 	rasterCache, err := NewRasterCache(config.RasterCacheSize)
@@ -258,17 +158,9 @@ func main() {
 	}
 
 	// Set up the signal handler to try to clean up on exit
-	go handleSignals(fCache, ring)
+	go handleSignals(fCache)
 
-	// Run the Redis protocol server and wire it up to our hash ring
-	go func() {
-		err := serveRedis(fmt.Sprintf(":%d", config.RedisPort), ring.Manager(), agent)
-		if err != nil {
-			log.Fatalf("Error starting Redis protocol server: %s", err)
-		}
-	}()
-
-	err = serveHttp(&config, fCache, ring, rasterCache, config.UrlSigningSecret, agent)
+	err = serveHttp(&config, fCache, rasterCache, config.UrlSigningSecret, agent)
 	if err != nil {
 		log.Fatalf("Failed to start HTTP server: %s", err)
 	}
