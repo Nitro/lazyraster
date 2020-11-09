@@ -22,7 +22,9 @@
 # We have to ignore lazypdf because we have to build it manually due to the C
 # library download and build.
 
-ignored = ["github.com/Nitro/lazypdf"]
+[[constraint]]
+  branch = "v1"
+  name = "github.com/Nitro/lazypdf"
 
 [[constraint]]
   branch = "master"
