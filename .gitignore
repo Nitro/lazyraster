@@ -4,4 +4,7 @@
 /*.pdf
 /vendor
 *.iml
-.idea/
+
+# Editor.
+/.vscode
+/.idea
