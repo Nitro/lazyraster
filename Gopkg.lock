@@ -10,6 +10,14 @@
   revision = "9bd490e4827b3b4629f8c3a1f2cca216de4ecb5f"
 
 [[projects]]
+  branch = "v1"
+  digest = "1:2aeeffe32253a6f88059bfabcfb4dd8fa60d6bf62d5d45cfc4f8936959fb33e5"
+  name = "github.com/Nitro/lazypdf"
+  packages = ["."]
+  pruneopts = ""
+  revision = "72f3c93a909e94cbc7e9d0a6a363faa8f76461ca"
+
+[[projects]]
   branch = "master"
   digest = "1:39aae12bc516c199696dafdd156fa28c00dce09d1843a78b487509a4fee7529d"
   name = "github.com/Nitro/urlsign"
@@ -221,6 +229,7 @@
   analyzer-version = 1
   input-imports = [
     "github.com/Nitro/filecache",
+    "github.com/Nitro/lazypdf",
     "github.com/Nitro/urlsign",
     "github.com/gorilla/handlers",
     "github.com/hashicorp/golang-lru",
