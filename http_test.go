@@ -114,7 +114,6 @@ func Test_EndToEnd(t *testing.T) {
 			cache:       cache,
 			rasterCache: rasterCache,
 			urlSecret:   "",
-			agent:       nil,
 			clock:       &dummyClock{},
 		}
 

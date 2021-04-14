@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -11,24 +10,24 @@ import (
 	"github.com/kelseyhightower/envconfig"
 	"github.com/relistan/rubberneck"
 	log "github.com/sirupsen/logrus"
-	"github.com/yvasiyarov/gorelic"
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
 const (
-	ShutdownTimeout    = 10 * time.Second
+	ShutdownTimeout = 10 * time.Second
 )
 
 // Config contains the application configuration parameters
 type Config struct {
-	BaseDir                 string   `envconfig:"BASE_DIR" default:"."`
-	HttpPort                int      `envconfig:"HTTP_PORT" default:"8000"`
-	AdvertiseHttpPort       int      `envconfig:"ADVERTISE_HTTP_PORT" default:"8000"`
-	AwsRegion               string   `envconfig:"AWS_REGION" default:"eu-central-1"`
-	CacheSize               int      `envconfig:"CACHE_SIZE" default:"512"`
-	UrlSigningSecret        string   `envconfig:"URL_SIGNING_SECRET" default:"deadbeef"`
-	RasterCacheSize         int      `envconfig:"RASTER_CACHE_SIZE" default:"20"`
-	RasterBufferSize        int      `envconfig:"RASTER_BUFFER_SIZE" default:"10"`
-	LoggingLevel            string   `envconfig:"LOGGING_LEVEL" default:"info"`
+	BaseDir           string `envconfig:"BASE_DIR" default:"."`
+	HttpPort          int    `envconfig:"HTTP_PORT" default:"8000"`
+	AdvertiseHttpPort int    `envconfig:"ADVERTISE_HTTP_PORT" default:"8000"`
+	AwsRegion         string `envconfig:"AWS_REGION" default:"eu-central-1"`
+	CacheSize         int    `envconfig:"CACHE_SIZE" default:"512"`
+	UrlSigningSecret  string `envconfig:"URL_SIGNING_SECRET" default:"deadbeef"`
+	RasterCacheSize   int    `envconfig:"RASTER_CACHE_SIZE" default:"20"`
+	RasterBufferSize  int    `envconfig:"RASTER_BUFFER_SIZE" default:"10"`
+	LoggingLevel      string `envconfig:"LOGGING_LEVEL" default:"info"`
 }
 
 func configureLoggingLevel(config *Config) {
@@ -71,42 +70,15 @@ func handleSignals(fCache *filecache.FileCache) {
 	os.Exit(130) // Ctrl-C received or equivalent
 }
 
-// configureNewRelic sets up and starts a Gorelic agent if we have a
-// New Relic license available.
-func configureNewRelic() *gorelic.Agent {
-	nrLicense := os.Getenv("NEW_RELIC_LICENSE_KEY")
-	var agent *gorelic.Agent
-	if nrLicense == "" {
-		log.Info("No New Relic license found, not starting an agent")
-
-		return nil
-	}
-
-	log.Infof("Configuring New Relic agent (Gorelic) with license '%s'", nrLicense)
-
-	agent = gorelic.NewAgent()
-	svcName := os.Getenv("SERVICE_NAME")
-	envName := os.Getenv("ENVIRONMENT_NAME")
-	if svcName != "" && envName != "" {
-		nrName := fmt.Sprintf("%s-%s", svcName, envName)
-		log.Infof("Registering with New Relic app name: %s", nrName)
-		agent.NewrelicName = nrName
-	}
-	agent.CollectHTTPStatuses = true
-	agent.CollectHTTPStat = true
-	agent.NewrelicLicense = nrLicense
-	err := agent.Run()
-	if err != nil {
-		log.Errorf("Failed to start NewRelic agent: %s", err)
-		return nil
-	}
-
-	return agent
-}
-
 func main() {
-	var config Config
+	tracer.Start(
+		tracer.WithService("lazyraster"),
+		tracer.WithAnalytics(true),
+		tracer.WithRuntimeMetrics(),
+	)
+	defer tracer.Stop()
 
+	var config Config
 	err := envconfig.Process("raster", &config)
 	if err != nil {
 		log.Fatalf("Failed to parse the configuration parameters: %s", err)
@@ -115,9 +87,6 @@ func main() {
 	configureLoggingLevel(&config)
 
 	rubberneck.NewPrinter(log.Infof, rubberneck.NoAddLineFeed).Print(config)
-
-	// New Relic
-	agent := configureNewRelic()
 
 	// Set up a rasterizer cache (in memory, keeps open documents ready to go)
 	rasterCache, err := NewRasterCache(config.RasterCacheSize)
@@ -140,14 +109,12 @@ func main() {
 		log.Fatalf("Unable to create LRU cache: %s", err)
 	}
 
-	// Wrap the download function with Gorelic to report on download times
-	if agent != nil {
-		origFunc := fCache.DownloadFunc
-		fCache.DownloadFunc = func(dr *filecache.DownloadRecord, localPath string) error {
-			t := agent.Tracer.BeginTrace("fileFetch")
-			defer t.EndTrace()
-			return origFunc(dr, localPath)
-		}
+	// Wrap the download function to report on download times
+	origFunc := fCache.DownloadFunc
+	fCache.DownloadFunc = func(dr *filecache.DownloadRecord, localPath string) error {
+		span := tracer.StartSpan("fileFetch")
+		defer span.Finish()
+		return origFunc(dr, localPath)
 	}
 
 	// Tie the deletion from file cache to the deletion from the rasterCache
@@ -160,7 +127,7 @@ func main() {
 	// Set up the signal handler to try to clean up on exit
 	go handleSignals(fCache)
 
-	err = serveHttp(&config, fCache, rasterCache, config.UrlSigningSecret, agent)
+	err = serveHttp(&config, fCache, rasterCache, config.UrlSigningSecret)
 	if err != nil {
 		log.Fatalf("Failed to start HTTP server: %s", err)
 	}
