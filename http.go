@@ -2,6 +2,7 @@ package main
 
 import (
 	"compress/gzip"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -22,7 +23,8 @@ import (
 	"github.com/Nitro/urlsign"
 	"github.com/gorilla/handlers"
 	log "github.com/sirupsen/logrus"
-	"github.com/yvasiyarov/gorelic"
+	ddHTTP "gopkg.in/DataDog/dd-trace-go.v1/contrib/net/http"
+	ddTracer "gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
 const (
@@ -175,26 +177,19 @@ type RasterHttpServer struct {
 	cache            *filecache.FileCache
 	rasterCache      *RasterCache
 	urlSecret        string
-	agent            *gorelic.Agent
 	clock            Clock
 	rasterBufferSize int
 }
 
-// beginTrace is a safe wrapper around the New Relic agent tracer
-func (h *RasterHttpServer) beginTrace(name string) *gorelic.Trace {
-	if h.agent != nil {
-		t := h.agent.Tracer.BeginTrace(name)
-		return t
-	}
-
-	return nil
+// beginTrace is a safe wrapper around the Datadog agent tracer
+func (h *RasterHttpServer) beginTrace(ctx context.Context, name string) ddTracer.Span {
+	span, _ := ddTracer.StartSpanFromContext(ctx, name)
+	return span
 }
 
-// endTrace is a safe wrapper around the New Relic agent tracer
-func (h *RasterHttpServer) endTrace(t *gorelic.Trace) {
-	if h.agent != nil {
-		t.EndTrace()
-	}
+// endTrace is a safe wrapper around the Datadog agent tracer
+func (h *RasterHttpServer) endTrace(span ddTracer.Span) {
+	span.Finish()
 }
 
 // isValidSignature is a wrapper to handle urlsign.IsValidSignature
@@ -322,12 +317,12 @@ func handleCORS(handler http.HandlerFunc) http.HandlerFunc {
 // handleDocument is an HTTP handler that responds to requests for documents
 func (h *RasterHttpServer) handleDocument(w http.ResponseWriter, r *http.Request) {
 
-	// Log some debug timing and send to New Relic
+	// Log some debug timing and send to Datadog
 	defer func(startTime time.Time) {
 		log.Debugf("Total request time: %s", time.Since(startTime))
 	}(time.Now())
 
-	t := h.beginTrace("handleDocument")
+	t := h.beginTrace(r.Context(), "handleDocument")
 	defer h.endTrace(t)
 
 	defer r.Body.Close()
@@ -380,7 +375,7 @@ func (h *RasterHttpServer) handleDocument(w http.ResponseWriter, r *http.Request
 	defer func(startTime time.Time) {
 		log.Debugf("Raster time %s for %s", time.Since(startTime), r.URL.Path)
 	}(time.Now())
-	t2 := h.beginTrace("rasterize")
+	t2 := h.beginTrace(r.Context(), "rasterize")
 	defer h.endTrace(t2)
 
 	// Get ahold of a rasterizer for this document either from the cache
@@ -509,7 +504,7 @@ func writeSVG(w http.ResponseWriter, r *http.Request, svg []byte) (err error) {
 
 // handleImage is an HTTP handler that responds to requests for pages
 func (h *RasterHttpServer) handleImage(w http.ResponseWriter, r *http.Request, raster *lazypdf.Rasterizer, socketClosed *bool) {
-	t := h.beginTrace("handleImage")
+	t := h.beginTrace(r.Context(), "handleImage")
 	defer h.endTrace(t)
 
 	imgParams, status, err := h.processImageParams(r)
@@ -620,23 +615,10 @@ func configureServer(config *Config, mux http.Handler) *http.Server {
 }
 
 func serveHttp(config *Config, cache *filecache.FileCache,
-	rasterCache *RasterCache, urlSecret string, agent *gorelic.Agent) error {
+	rasterCache *RasterCache, urlSecret string) error {
 
 	// Protect against garbage configuration
 	urlSecret = strings.TrimSpace(urlSecret)
-
-	// Simple wrapper to make definitions simpler to read/understand
-	handle := func(f func(http.ResponseWriter, *http.Request)) func(http.ResponseWriter, *http.Request) {
-		if agent != nil {
-			return agent.WrapHTTPHandlerFunc(f)
-		} else {
-			return f
-		}
-	}
-
-	if agent != nil {
-		log.Info("Configuring New Relic http tracing")
-	}
 
 	if len(urlSecret) < 1 {
 		log.Warn("No URL signing secret was passed... Running in insecure mode!")
@@ -646,25 +628,25 @@ func serveHttp(config *Config, cache *filecache.FileCache,
 		cache:            cache,
 		rasterCache:      rasterCache,
 		urlSecret:        urlSecret,
-		agent:            agent,
 		clock:            &utcClock{},
 		rasterBufferSize: config.RasterBufferSize,
 	}
 
 	// We have to wrap this to make LoggingHandler happy
 	docHandler := http.NewServeMux()
-	docHandler.HandleFunc("/", handle(handleCORS(h.handleDocument)))
+	docHandler.HandleFunc("/", handleCORS(h.handleDocument))
 
 	// ------------------------------------------------------------------------
 	// Route definitions
 	// ------------------------------------------------------------------------
 	mux := http.DefaultServeMux
-	mux.HandleFunc("/favicon.ico", http.NotFound) // Browsers look for this
-	mux.HandleFunc("/health", handle(h.handleHealth))
-	mux.HandleFunc("/filecache/list", handle(h.handleListFilecache))
-	mux.HandleFunc("/rastercache/purge", handle(h.handleClearRasterCache))
-	mux.HandleFunc("/shutdown", handle(h.handleShutdown))
-	mux.Handle("/documents/", handlers.LoggingHandler(os.Stdout, docHandler))
+
+	ddHTTP.WrapHandler(http.HandlerFunc(http.NotFound), "http.request", "/favicon.ico") // Browsers look for this
+	ddHTTP.WrapHandler(http.HandlerFunc(h.handleHealth), "http.request", "/health")
+	ddHTTP.WrapHandler(http.HandlerFunc(h.handleListFilecache), "http.request", "/filecache/list")
+	ddHTTP.WrapHandler(http.HandlerFunc(h.handleClearRasterCache), "http.request", "/rastercache/purge")
+	ddHTTP.WrapHandler(http.HandlerFunc(h.handleShutdown), "http.request", "/shutdown")
+	ddHTTP.WrapHandler(handlers.LoggingHandler(os.Stdout, docHandler), "http.request", "/documents/")
 	// ------------------------------------------------------------------------
 
 	server := configureServer(config, mux)
