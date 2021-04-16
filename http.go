@@ -639,14 +639,13 @@ func serveHttp(config *Config, cache *filecache.FileCache,
 	// ------------------------------------------------------------------------
 	// Route definitions
 	// ------------------------------------------------------------------------
-	mux := http.DefaultServeMux
-
-	ddHTTP.WrapHandler(http.HandlerFunc(http.NotFound), "http.request", "/favicon.ico") // Browsers look for this
-	ddHTTP.WrapHandler(http.HandlerFunc(h.handleHealth), "http.request", "/health")
-	ddHTTP.WrapHandler(http.HandlerFunc(h.handleListFilecache), "http.request", "/filecache/list")
-	ddHTTP.WrapHandler(http.HandlerFunc(h.handleClearRasterCache), "http.request", "/rastercache/purge")
-	ddHTTP.WrapHandler(http.HandlerFunc(h.handleShutdown), "http.request", "/shutdown")
-	ddHTTP.WrapHandler(handlers.LoggingHandler(os.Stdout, docHandler), "http.request", "/documents/")
+	mux := ddHTTP.NewServeMux()
+	mux.HandleFunc("/favicon.ico", http.NotFound) // Browsers look for this
+	mux.HandleFunc("/health", h.handleHealth)
+	mux.HandleFunc("/filecache/list", h.handleListFilecache)
+	mux.HandleFunc("/rastercache/purge", h.handleClearRasterCache)
+	mux.HandleFunc("/shutdown", h.handleShutdown)
+	mux.Handle("/documents/", handlers.LoggingHandler(os.Stdout, docHandler))
 	// ------------------------------------------------------------------------
 
 	server := configureServer(config, mux)
