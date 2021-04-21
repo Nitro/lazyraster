@@ -73,7 +73,6 @@ func handleSignals(fCache *filecache.FileCache) {
 func main() {
 	tracer.Start(
 		tracer.WithService("lazyraster"),
-		tracer.WithAnalytics(true),
 		tracer.WithRuntimeMetrics(),
 	)
 	defer tracer.Stop()
