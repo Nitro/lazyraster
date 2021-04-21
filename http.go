@@ -322,8 +322,8 @@ func (h *RasterHttpServer) handleDocument(w http.ResponseWriter, r *http.Request
 		log.Debugf("Total request time: %s", time.Since(startTime))
 	}(time.Now())
 
-	t := h.beginTrace(r.Context(), "handleDocument")
-	defer h.endTrace(t)
+	//	t := h.beginTrace(r.Context(), "handleDocument")
+	//	defer h.endTrace(t)
 
 	defer r.Body.Close()
 
@@ -375,8 +375,8 @@ func (h *RasterHttpServer) handleDocument(w http.ResponseWriter, r *http.Request
 	defer func(startTime time.Time) {
 		log.Debugf("Raster time %s for %s", time.Since(startTime), r.URL.Path)
 	}(time.Now())
-	t2 := h.beginTrace(r.Context(), "rasterize")
-	defer h.endTrace(t2)
+	//	t2 := h.beginTrace(r.Context(), "rasterize")
+	//	defer h.endTrace(t2)
 
 	// Get ahold of a rasterizer for this document either from the cache
 	// or newly constructed by the cache.
@@ -504,8 +504,8 @@ func writeSVG(w http.ResponseWriter, r *http.Request, svg []byte) (err error) {
 
 // handleImage is an HTTP handler that responds to requests for pages
 func (h *RasterHttpServer) handleImage(w http.ResponseWriter, r *http.Request, raster *lazypdf.Rasterizer, socketClosed *bool) {
-	t := h.beginTrace(r.Context(), "handleImage")
-	defer h.endTrace(t)
+	//	t := h.beginTrace(r.Context(), "handleImage")
+	//	defer h.endTrace(t)
 
 	imgParams, status, err := h.processImageParams(r)
 	if err != nil {
