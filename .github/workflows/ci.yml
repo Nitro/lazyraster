@@ -1,0 +1,84 @@
+on:
+  push:
+    branches:
+      - '**'
+      - '!main'
+
+  workflow_dispatch:
+    inputs:
+      appVersion:
+        description: 'Application version'
+        required: true
+
+      environment:
+        description: 'Environment'
+        required: true
+
+name: CI
+jobs:
+  quality:
+    name: Quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Set Application version if not present
+        run: |
+          if [ "${{ github.event.inputs.appVersion }}" != "" ]; then
+            echo "APP_VERSION=${{ github.event.inputs.appVersion }}" >> $GITHUB_ENV
+          else
+            echo "APP_VERSION=$GITHUB_SHA" >> $GITHUB_ENV
+          fi
+
+      - name: Set GOPATH
+        run: echo "GOPATH=$GITHUB_WORKSPACE" >> $GITHUB_ENV
+
+      - name: Checkout code
+        uses: actions/checkout@v2
+        with:
+          ref: ${{ env.APP_VERSION }}
+          path: src/github.com/Nitro/lazyraster
+
+      - uses: actions/setup-go@v2
+        with:
+          go-version: '1.16'
+
+      - name: Build lazypdf
+        run: |
+          git clone https://github.com/Nitro/lazypdf.git
+          mv lazypdf src/github.com/Nitro/
+          cd $GOPATH/src/github.com/Nitro/lazypdf
+          SHALLOW_CLONE=true ./build
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v2
+        with:
+          version: v1.39.0
+          working-directory: src/github.com/Nitro/lazyraster
+
+      - name: Build Docker image
+        working-directory: src/github.com/Nitro/lazyraster
+        run: |
+          go build
+          cp lazyraster docker/
+          cd docker
+          docker build -t lazyraster .
+          docker tag lazyraster gonitro/lazyraster:${GITHUB_SHA::7}
+          docker tag lazyraster gonitro/lazyraster:latest
+
+      - name: Run tests
+        working-directory: src/github.com/Nitro/lazyraster
+        run: go test -v -race --timeout 30s ./...
+
+      - name: Docker Hub login
+        if: github.ref == 'refs/heads/master'
+        uses: docker/login-action@v1
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+
+      - name: Push Docker image
+        if: github.ref == 'refs/heads/master'
+        run: |
+          docker push gonitro/lazyraster:${GITHUB_SHA::7}
+          docker push gonitro/lazyraster:latest
