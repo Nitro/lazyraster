@@ -39,10 +39,23 @@ jobs:
           ref: ${{ env.APP_VERSION }}
           path: src/github.com/Nitro/lazyraster
 
+      # Code Scanning
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v1
+        with:
+          languages: go
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v1
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v1
+
       - uses: actions/setup-go@v2
         with:
           go-version: '1.16'
-
+      
+      # Build
       - name: Build lazypdf
         run: |
           git clone https://github.com/Nitro/lazypdf.git
