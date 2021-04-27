@@ -33,11 +33,8 @@ jobs:
       - name: Set GOPATH
         run: echo "GOPATH=$GITHUB_WORKSPACE" >> $GITHUB_ENV
 
-      - name: Checkout code
+      - name: Checkout code for Analysing
         uses: actions/checkout@v2
-        with:
-          ref: ${{ env.APP_VERSION }}
-          path: src/github.com/Nitro/lazyraster
 
       # Code Scanning
       - name: Initialize CodeQL
@@ -54,8 +51,15 @@ jobs:
       - uses: actions/setup-go@v2
         with:
           go-version: '1.16'
-      
+
+
       # Build
+      - name: Checkout code for Building
+        uses: actions/checkout@v2
+        with:
+          ref: ${{ env.APP_VERSION }}
+          path: src/github.com/Nitro/lazyraster
+      
       - name: Build lazypdf
         run: |
           git clone https://github.com/Nitro/lazypdf.git
