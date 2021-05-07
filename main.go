@@ -28,6 +28,7 @@ type Config struct {
 	RasterCacheSize   int    `envconfig:"RASTER_CACHE_SIZE" default:"20"`
 	RasterBufferSize  int    `envconfig:"RASTER_BUFFER_SIZE" default:"10"`
 	LoggingLevel      string `envconfig:"LOGGING_LEVEL" default:"info"`
+	DisableCORS       bool   `envconfig:"DISABLE_CORS" default:"false"`
 }
 
 func configureLoggingLevel(config *Config) {
