@@ -633,8 +633,12 @@ func serveHttp(config *Config, cache *filecache.FileCache,
 	}
 
 	// We have to wrap this to make LoggingHandler happy
+	handler := h.handleDocument
+	if !config.DisableCORS {
+		handler = handleCORS(handler)
+	}
 	docHandler := http.NewServeMux()
-	docHandler.HandleFunc("/", handleCORS(h.handleDocument))
+	docHandler.HandleFunc("/", handler)
 
 	// ------------------------------------------------------------------------
 	// Route definitions
