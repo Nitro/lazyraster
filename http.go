@@ -380,7 +380,9 @@ func (h *RasterHttpServer) handleDocument(w http.ResponseWriter, r *http.Request
 
 	// Get ahold of a rasterizer for this document either from the cache
 	// or newly constructed by the cache.
+	t3 := h.beginTrace(r.Context(), "GetRasterizer") // Keep track of how long it takes to get a rasterizer
 	raster, err := h.rasterCache.GetRasterizer(docParams.StoragePath, h.rasterBufferSize)
+	h.endTrace(t3)
 	if err != nil {
 		log.Errorf("Unable to get rasterizer for %s: %s", docParams.StoragePath, err)
 		http.Error(w, "Error encountered while processing pdf", 500)
