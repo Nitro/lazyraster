@@ -49,7 +49,7 @@ func (r *RasterCache) GetRasterizer(filename string, rasterBufferSize int) (*laz
 	log.Infof("Trying to acquire raster lock (filename: %s)", filename)
 	r.rasterLock.Lock()
 	defer r.rasterLock.Unlock()
-	log.Infof("Raster lock acquired (filenameL %s)", filename)
+	log.Infof("Raster lock acquired (filename: %s)", filename)
 
 	if rawRaster, ok := r.rasterizers.Get(filename); ok {
 		raster = rawRaster.(*lazypdf.Rasterizer)
