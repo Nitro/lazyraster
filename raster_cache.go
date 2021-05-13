@@ -1,6 +1,7 @@
 package main
 
 import (
+	"time"
 	"fmt"
 	"sync"
 
@@ -45,11 +46,8 @@ func NewRasterCache(size int) (*RasterCache, error) {
 func (r *RasterCache) GetRasterizer(filename string, rasterBufferSize int) (*lazypdf.Rasterizer, error) {
 	var raster *lazypdf.Rasterizer
 
-	// Temp logs to make sure we don't get stuck trying to acquire this lock
-	log.Infof("Trying to acquire raster lock (filename: %s)", filename)
 	r.rasterLock.Lock()
 	defer r.rasterLock.Unlock()
-	log.Infof("Raster lock acquired (filename: %s)", filename)
 
 	if rawRaster, ok := r.rasterizers.Get(filename); ok {
 		raster = rawRaster.(*lazypdf.Rasterizer)
@@ -57,15 +55,18 @@ func (r *RasterCache) GetRasterizer(filename string, rasterBufferSize int) (*laz
 	}
 
 	log.Infof("Initializing new rasterizer for %s", filename)
+	t0 := time.Now()
 	raster = lazypdf.NewRasterizer(filename, rasterBufferSize)
 	err := raster.Run()
+	log.Infof("NewRasterizer took %s for %s", time.Since(t0), filename)
 	if err != nil {
 		return nil, fmt.Errorf("Can't run rasterizer for %s: %s", filename, err)
 	}
+
 	r.rasterizers.Add(filename, raster)
 
 	// Visualize raster cache for debug purposes
-	log.Infof("Current raster cache: %+v", r)
+	log.Infof("rasterCache len: %d, keys: %v", r.rasterizers.Len(), r.rasterizers.Keys())
 
 	return raster, nil
 }
@@ -74,8 +75,7 @@ func (r *RasterCache) GetRasterizer(filename string, rasterBufferSize int) (*laz
 func (r *RasterCache) Remove(filename string) {
 	if r.rasterizers.Contains(filename) {
 		r.rasterizers.Remove(filename)
-		log.Infof("Removed %s from raster cache", filename)
-		log.Infof("Current raster cache: %+v", r)
+		log.Infof("Removed %s from raster cache. len: %d, keys: %v", filename, r.rasterizers.Len(), r.rasterizers.Keys())
 	}
 }
 
@@ -83,8 +83,7 @@ func (r *RasterCache) Remove(filename string) {
 // each item in the cache.
 func (r *RasterCache) Purge() {
 	r.rasterizers.Purge()
-	log.Infof("Purged raster cache")
-	log.Infof("Current raster cache: %+v", r)
+	log.Infof("Purged raster cache. len: %d, keys: %v", r.rasterizers.Len(), r.rasterizers.Keys())
 }
 
 // onEvicted is the callback that is used when something is removed from the cache,
