@@ -75,7 +75,7 @@ func (r *RasterCache) GetRasterizer(filename string, rasterBufferSize int) (*laz
 func (r *RasterCache) Remove(filename string) {
 	if r.rasterizers.Contains(filename) {
 		r.rasterizers.Remove(filename)
-		log.Infof("Removed %s from raster cache. len: %s, keys: %v", filename, r.rasterizers.Len(), r.rasterizers.Keys())
+		log.Infof("Removed %s from raster cache. len: %d, keys: %v", filename, r.rasterizers.Len(), r.rasterizers.Keys())
 	}
 }
 
@@ -83,7 +83,7 @@ func (r *RasterCache) Remove(filename string) {
 // each item in the cache.
 func (r *RasterCache) Purge() {
 	r.rasterizers.Purge()
-	log.Infof("Purged raster cache. len: %s, keys: %v", r.rasterizers.Len(), r.rasterizers.Keys())
+	log.Infof("Purged raster cache. len: %d, keys: %v", r.rasterizers.Len(), r.rasterizers.Keys())
 }
 
 // onEvicted is the callback that is used when something is removed from the cache,
