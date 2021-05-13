@@ -382,12 +382,12 @@ func (h *RasterHttpServer) handleDocument(w http.ResponseWriter, r *http.Request
 	// or newly constructed by the cache.
 	t3 := h.beginTrace(r.Context(), "GetRasterizer") // Keep track of how long it takes to get a rasterizer
 	raster, err := h.rasterCache.GetRasterizer(docParams.StoragePath, h.rasterBufferSize)
+	h.endTrace(t3)
 	if err != nil {
 		log.Errorf("Unable to get rasterizer for %s: %s", docParams.StoragePath, err)
 		http.Error(w, "Error encountered while processing pdf", 500)
 		return
 	}
-	h.endTrace(t3)
 
 	if socketClosed {
 		log.Infof("Socket closed by client, aborting request for %q", r.URL.Path)
