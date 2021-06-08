@@ -1,0 +1,59 @@
+linters:
+  disable-all: true
+  enable:
+    - bodyclose
+    - deadcode
+    - dupl
+    - errcheck
+    - gochecknoglobals
+    - gochecknoinits
+    - goconst
+    - gocritic
+    - gocyclo
+    - gofmt
+    - goimports
+    - gosec
+    - gosimple
+    - govet
+    - lll
+    - ineffassign
+    - misspell
+    - nakedret
+    - prealloc
+    - exportloopref
+    - staticcheck
+    - structcheck
+    - stylecheck
+    - typecheck
+    - unconvert
+    - unparam
+    - unused
+    - varcheck
+    - dogsled
+    - godox
+    - whitespace
+
+linter-settings:
+  goimports:
+    local-prefixes: github.com/nitro/lazyraster
+
+  errcheck:
+    check-type-assertions: true
+    check-blank: true
+
+  unused:
+    check-exported: true
+
+  unparam:
+    check-exported: true
+
+  prealloc:
+    for-loops: true
+
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - style
+      - performance
+      - experimental
+      - opinionated
