@@ -1,10 +1,7 @@
-*.swp
-*.swo
-/lazyraster
-/*.pdf
-/vendor
-*.iml
-
 # Editor.
 /.vscode
-/.idea
+
+# Temporary files.
+/cmd/main
+/cmd/cmd
+.DS_Store
