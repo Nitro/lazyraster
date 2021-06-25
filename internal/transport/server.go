@@ -97,5 +97,6 @@ func (s *Server) initHandler() {
 	s.router.MethodNotAllowed(h.methodNotAllowed)
 	s.router.NotFound(h.notFound)
 	s.router.Get("/health", h.health)
+	s.router.Get("/documents/dropbox/*", h.document)
 	s.router.Get("/documents/*", h.document)
 }
