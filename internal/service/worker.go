@@ -17,6 +17,7 @@ import (
 
 	"github.com/Nitro/urlsign"
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3iface"
@@ -204,6 +205,9 @@ func (w *Worker) fetchFile(ctx context.Context, path string) (_ []byte, err erro
 		Key:    aws.String(strings.Join(fragments[1:], "/")),
 	})
 	if err != nil {
+		if awsErr, ok := err.(awserr.Error); ok && (awsErr.Code() == s3.ErrCodeNoSuchKey) {
+			return nil, newNotFoundError(err)
+		}
 		return nil, fmt.Errorf("fail to get object: %w", err)
 	}
 	defer output.Body.Close()
@@ -237,7 +241,9 @@ func (w *Worker) fetchFileFromDropbox(ctx context.Context, path string) (_ []byt
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, newNotFoundError(errors.New("dropbox returned 404"))
+	} else if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, fmt.Errorf("invalid status code '%d'", resp.StatusCode)
 	}
 

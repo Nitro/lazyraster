@@ -99,6 +99,8 @@ func (h handler) document(w http.ResponseWriter, r *http.Request) {
 		status := http.StatusInternalServerError
 		if errors.Is(err, service.ErrClient) {
 			status = http.StatusBadRequest
+		} else if errors.Is(err, service.ErrNotFound) {
+			status = http.StatusNotFound
 		}
 		logger.Err(err).Str("requestID", reqID).Msg("Error")
 		h.writer.error(r.Context(), w, fmt.Sprintf("Request ID '%s'", reqID), nil, status)
@@ -135,6 +137,8 @@ func (h handler) metadata(w http.ResponseWriter, r *http.Request) {
 		status := http.StatusInternalServerError
 		if errors.Is(err, service.ErrClient) {
 			status = http.StatusBadRequest
+		} else if errors.Is(err, service.ErrNotFound) {
+			status = http.StatusNotFound
 		}
 		logger.Err(err).Str("requestID", reqID).Msg("Error")
 		h.writer.error(r.Context(), w, fmt.Sprintf("Request ID '%s'", reqID), nil, status)

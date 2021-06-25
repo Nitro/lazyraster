@@ -8,8 +8,11 @@ import (
 	ddTracer "gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
-// ErrClient is sentinel error to indentify errors originated by the client.
-var ErrClient = ServiceError{origin: "client"}
+// Sentinel errors.
+var (
+	ErrClient   = ServiceError{origin: "client"}
+	ErrNotFound = ServiceError{origin: "notFound"}
+)
 
 func startSpan(
 	ctx context.Context, operation string, opts ...ddTracer.StartSpanOption,
@@ -39,4 +42,8 @@ func (se ServiceError) Error() string {
 
 func newClientError(err error) error {
 	return ServiceError{base: err, origin: "client"}
+}
+
+func newNotFoundError(err error) error {
+	return ServiceError{base: err, origin: "notFound"}
 }
