@@ -15,25 +15,32 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
-
       - name: Setup Go
         uses: actions/setup-go@v2
         with:
           go-version: 1.16
 
       - name: Go cache
+        id: cache
         uses: actions/cache@v2
         with:
           path: |
             ~/.cache/go-build
-            ~/go/pkg/mod
             ~/Library/Caches/go-build
             ~/go/pkg/mod
+            ~/go/bin
           key: ${{ matrix.os }}-go-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ matrix.os }}-go-
+
+      - name: Install dependencies
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          go get github.com/mfridman/tparse@v0.8.3
+          go get github.com/golangci/golangci-lint/cmd/golangci-lint@v1.40.1
+
+      - name: Checkout code
+        uses: actions/checkout@v2
 
       - name: Dependency linter
         if: matrix.os == 'ubuntu-latest'
@@ -46,12 +53,8 @@ jobs:
         run: go build ./...
 
       - name: Test
-        run: |
-          go get github.com/mfridman/tparse@v0.8.3
-          go test -race -cover -covermode=atomic -json ./... | tparse -all
+        run: go test -race -cover -covermode=atomic -json ./... | tparse -all
 
       - name: Go golangci-lint
         if: matrix.os == 'ubuntu-latest'
-        run: |
-          go get github.com/golangci/golangci-lint/cmd/golangci-lint@v1.40.1
-          golangci-lint run -c misc/golangci/config.yml ./...
+        run: golangci-lint run -c misc/golangci/config.yml ./...
