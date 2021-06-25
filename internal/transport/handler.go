@@ -100,7 +100,7 @@ func (h handler) document(w http.ResponseWriter, r *http.Request) {
 		if errors.Is(err, service.ErrClient) {
 			status = http.StatusBadRequest
 		}
-		logger.Err(err).Str("requestID", reqID).Msg("Internal server error")
+		logger.Err(err).Str("requestID", reqID).Msg("Error")
 		h.writer.error(r.Context(), w, fmt.Sprintf("Request ID '%s'", reqID), nil, status)
 		return
 	}
@@ -136,7 +136,7 @@ func (h handler) metadata(w http.ResponseWriter, r *http.Request) {
 		if errors.Is(err, service.ErrClient) {
 			status = http.StatusBadRequest
 		}
-		logger.Err(err).Str("requestID", reqID).Msg("Internal server error")
+		logger.Err(err).Str("requestID", reqID).Msg("Error")
 		h.writer.error(r.Context(), w, fmt.Sprintf("Request ID '%s'", reqID), nil, status)
 		return
 	}
