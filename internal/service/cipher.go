@@ -54,6 +54,11 @@ func (c Cipher) Get(ctx context.Context, key string) (_ io.ReadCloser, err error
 	span, ctx := startSpan(ctx, "Cipher.Get")
 	defer func() { span.Finish(ddTracer.WithError(err)) }()
 
+	key, err = generateHash([]byte(key), []byte(c.Key))
+	if err != nil {
+		return nil, fmt.Errorf("fail to key: %w", err)
+	}
+
 	reader, err := c.Storage.Get(ctx, key)
 	if err != nil {
 		return nil, err
@@ -86,6 +91,11 @@ func (c Cipher) Get(ctx context.Context, key string) (_ io.ReadCloser, err error
 func (c Cipher) Put(ctx context.Context, key string, reader io.Reader) (err error) {
 	span, ctx := startSpan(ctx, "Cipher.Get")
 	defer func() { span.Finish(ddTracer.WithError(err)) }()
+
+	key, err = generateHash([]byte(key), []byte(c.Key))
+	if err != nil {
+		return fmt.Errorf("fail to key: %w", err)
+	}
 
 	payload, err := io.ReadAll(reader)
 	if err != nil {
