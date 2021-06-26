@@ -3,9 +3,7 @@ package service
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
 	"encoding/base64"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -114,11 +112,12 @@ func (w *Worker) Process(
 		return fmt.Errorf("fail to fetch the file: %w", err)
 	}
 
-	hash, err := w.generateHash(payload, []string{
-		strconv.Itoa(page),
-		strconv.Itoa(width),
-		strconv.FormatFloat(float64(scale), 'f', 5, 32),
-	})
+	hash, err := generateHash(
+		payload,
+		[]byte(strconv.Itoa(page)),
+		[]byte(strconv.Itoa(width)),
+		[]byte(strconv.FormatFloat(float64(scale), 'f', 5, 32)),
+	)
 	if err != nil {
 		return fmt.Errorf("fail to generate the hash: %w", err)
 	}
@@ -265,26 +264,6 @@ func (w *Worker) fetchFileFromDropbox(ctx context.Context, path string) (_ []byt
 	}
 
 	return payload, nil
-}
-
-func (*Worker) generateHash(payload []byte, parameters []string) (string, error) {
-	h := sha256.New()
-	if _, err := h.Write(payload); err != nil {
-		return "", fmt.Errorf("fail to write the payload to the hash function: %w", err)
-	}
-
-	var sb strings.Builder
-	for _, parameter := range parameters {
-		if _, err := sb.WriteString(parameter); err != nil {
-			return "", fmt.Errorf("fail to write the parameters to the string builder: %w", err)
-		}
-	}
-
-	if _, err := io.WriteString(h, sb.String()); err != nil {
-		return "", fmt.Errorf("fail to write the parameters to the hash function: %w", err)
-	}
-
-	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
 func (*Worker) generateFilename() string {

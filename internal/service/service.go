@@ -2,7 +2,10 @@ package service
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
+	"fmt"
 
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace"
 	ddTracer "gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
@@ -46,4 +49,14 @@ func newClientError(err error) error {
 
 func newNotFoundError(err error) error {
 	return ServiceError{base: err, origin: "notFound"}
+}
+
+func generateHash(parameters ...[]byte) (string, error) {
+	h := sha256.New()
+	for _, parameter := range parameters {
+		if _, err := h.Write(parameter); err != nil {
+			return "", fmt.Errorf("fail to write the parameter to the hash function: %w", err)
+		}
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
 }
