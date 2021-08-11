@@ -16,6 +16,8 @@ import (
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/ext"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
+
+	"github.com/nitro/lazyraster/v2/internal/service"
 )
 
 type middleware struct {
@@ -185,4 +187,15 @@ func (m middleware) timeout(duration time.Duration) func(http.Handler) http.Hand
 		}
 		return http.HandlerFunc(fn)
 	}
+}
+
+func (m middleware) bypassCache(next http.Handler) http.Handler {
+	fn := func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("bypass-cache") == "true" {
+			ctx := context.WithValue(r.Context(), service.BypassKey, true)
+			r = r.WithContext(ctx)
+		}
+		next.ServeHTTP(w, r)
+	}
+	return http.HandlerFunc(fn)
 }
