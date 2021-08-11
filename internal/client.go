@@ -77,7 +77,7 @@ func (c *Client) Init() (err error) {
 
 	c.serviceWorker.URLSigningSecret = c.URLSigningSecret
 	c.serviceWorker.HTTPClient = httpClient
-	c.serviceWorker.Storage = c.serviceCipher
+	c.serviceWorker.Storage = service.Bypass{Service: c.serviceCipher}
 	c.serviceWorker.Logger = c.Logger
 	c.serviceWorker.TraceExtractor = traceLogger(c.EnableDatadog)
 	c.serviceWorker.StorageBucketRegion = c.StorageBucketRegion

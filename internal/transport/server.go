@@ -76,6 +76,7 @@ func (s *Server) Stop(ctx context.Context) error {
 func (s *Server) initMiddleware() {
 	m := middleware{log: s.Logger, writer: s.writer, traceExtractor: s.TraceExtractor}
 	s.router.Use(m.recoverer)
+	s.router.Use(m.bypassCache)
 	s.router.Use(m.timeout(5 * time.Second))
 	s.router.Use(m.datadogTracer)
 	s.router.Use(chiMiddleware.NoCache)
