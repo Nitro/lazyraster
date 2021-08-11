@@ -2,6 +2,7 @@ package transport
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"net/http"
 	"runtime/debug"
@@ -173,4 +174,15 @@ func (m middleware) datadogTracer(next http.Handler) http.Handler {
 			span.SetTag(ext.ErrorStack, string(debug.Stack()))
 		}
 	})
+}
+
+func (m middleware) timeout(duration time.Duration) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		fn := func(w http.ResponseWriter, r *http.Request) {
+			ctx, ctxCancel := context.WithTimeout(r.Context(), duration)
+			next.ServeHTTP(w, r.WithContext(ctx))
+			ctxCancel()
+		}
+		return http.HandlerFunc(fn)
+	}
 }
