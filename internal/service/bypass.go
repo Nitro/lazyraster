@@ -22,7 +22,7 @@ type Bypass struct {
 
 // Get object.
 func (b Bypass) Get(ctx context.Context, key string) (_ io.ReadCloser, err error) {
-	if b.bypass(ctx) {
+	if b.Bypass(ctx) {
 		return nil, nil
 	}
 	return b.Service.Get(ctx, key)
@@ -30,13 +30,14 @@ func (b Bypass) Get(ctx context.Context, key string) (_ io.ReadCloser, err error
 
 // Put a object.
 func (b Bypass) Put(ctx context.Context, key string, payload io.Reader) (err error) {
-	if b.bypass(ctx) {
+	if b.Bypass(ctx) {
 		return nil
 	}
 	return b.Service.Put(ctx, key, payload)
 }
 
-func (Bypass) bypass(ctx context.Context) bool {
+// Bypass is used to indicate if the context has a flag to bypass a operation.
+func (Bypass) Bypass(ctx context.Context) bool {
 	bypass, _ := ctx.Value(BypassKey).(bool)
 	return bypass
 }

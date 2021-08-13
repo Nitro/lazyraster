@@ -29,6 +29,7 @@ type Client struct {
 	serviceCipher service.Cipher
 	serviceCache  service.Cache
 	serviceWorker service.Worker
+	serviceBypass service.Bypass
 }
 
 // Init the client internal state.
@@ -75,9 +76,12 @@ func (c *Client) Init() (err error) {
 		return fmt.Errorf("fail to initialize service cipher: %w", err)
 	}
 
+	c.serviceBypass.Service = c.serviceCipher
+
 	c.serviceWorker.URLSigningSecret = c.URLSigningSecret
 	c.serviceWorker.HTTPClient = httpClient
-	c.serviceWorker.Storage = service.Bypass{Service: c.serviceCipher}
+	c.serviceWorker.Storage = c.serviceBypass
+	c.serviceWorker.BypassStoragePut = c.serviceBypass
 	c.serviceWorker.Logger = c.Logger
 	c.serviceWorker.TraceExtractor = traceLogger(c.EnableDatadog)
 	c.serviceWorker.StorageBucketRegion = c.StorageBucketRegion
