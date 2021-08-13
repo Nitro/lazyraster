@@ -34,11 +34,16 @@ type workerStorage interface {
 	Put(ctx context.Context, key string, payload io.Reader) error
 }
 
+type workerBypassStoragePut interface {
+	Bypass(ctx context.Context) bool
+}
+
 // Worker used to fetch and process PDF files.
 type Worker struct {
 	HTTPClient          *http.Client
 	URLSigningSecret    string
 	Storage             workerStorage
+	BypassStoragePut    workerBypassStoragePut
 	Logger              zerolog.Logger
 	TraceExtractor      func(context.Context, zerolog.Logger) (zerolog.Logger, error)
 	StorageBucketRegion map[string]string
@@ -58,6 +63,9 @@ func (w *Worker) Init() error {
 	}
 	if w.Storage == nil {
 		return errors.New("internal/service/Worker.Storage can't be nil")
+	}
+	if w.BypassStoragePut == nil {
+		return errors.New("internal/service/Worker.BypassStoragePut can't be nil")
 	}
 	if w.TraceExtractor == nil {
 		return errors.New("internal/service/Worker.TraceExtractor can't be nil")
@@ -127,6 +135,10 @@ func (w *Worker) Process(
 		}
 		storageBytes := storage.Bytes()
 		result = io.NopCloser(storage)
+
+		if w.BypassStoragePut.Bypass(ctx) {
+			return nil
+		}
 
 		baseSpan, ok := ddTracer.SpanFromContext(ctx)
 		if !ok {

@@ -38,6 +38,7 @@ func TestWorkerProcess(t *testing.T) {
 		scale         float32
 		s3Client      func(*testing.T) *mockS3
 		storageClient func(*testing.T) *mockStorage
+		bypassClient  func(*testing.T) *mockBypass
 		expectedError string
 	}{
 		{
@@ -242,6 +243,11 @@ func TestWorkerProcess(t *testing.T) {
 				client.On("Get", mock.Anything, hash).Return(nil, nil)
 				return &client
 			},
+			bypassClient: func(*testing.T) *mockBypass {
+				var client mockBypass
+				client.On("Bypass", mock.Anything).Return(false)
+				return &client
+			},
 		},
 	}
 	for _, tt := range tests {
@@ -251,6 +257,7 @@ func TestWorkerProcess(t *testing.T) {
 			var (
 				s3Client      *mockS3
 				storageClient *mockStorage = &mockStorage{}
+				bypassClient  *mockBypass  = &mockBypass{}
 				getS3Client   func(string) (s3iface.S3API, error)
 			)
 			if tt.s3Client != nil {
@@ -264,11 +271,16 @@ func TestWorkerProcess(t *testing.T) {
 				storageClient = tt.storageClient(t)
 				defer storageClient.AssertExpectations(t)
 			}
+			if tt.bypassClient != nil {
+				bypassClient = tt.bypassClient(t)
+				defer bypassClient.AssertExpectations(t)
+			}
 
 			w := Worker{
 				HTTPClient:          http.DefaultClient,
 				URLSigningSecret:    urlSecret,
 				Storage:             storageClient,
+				BypassStoragePut:    bypassClient,
 				TraceExtractor:      traceExtractor,
 				StorageBucketRegion: map[string]string{"eu-central-1": "bucket-1"},
 				getS3Client:         getS3Client,
@@ -311,6 +323,15 @@ func (m *mockStorage) Get(ctx context.Context, key string) (io.ReadCloser, error
 
 func (*mockStorage) Put(ctx context.Context, key string, payload io.Reader) error {
 	return nil
+}
+
+type mockBypass struct {
+	mock.Mock
+}
+
+func (m *mockBypass) Bypass(ctx context.Context) bool {
+	args := m.Called(ctx)
+	return args.Bool(0)
 }
 
 func traceExtractor(context.Context, zerolog.Logger) (zerolog.Logger, error) {
