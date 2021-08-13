@@ -161,6 +161,13 @@ func (m middleware) datadogTracer(next http.Handler) http.Handler {
 			resourceName = "unknown"
 		}
 		resourceName = r.Method + " " + resourceName
+
+		// If the header 'datadog-resource-prefix' is present the value will be prefixed at the resource name
+		// that is set at the span sent to Datadog.
+		resourcePrefix := r.Header.Get("datadog-resource-prefix")
+		if resourcePrefix != "" {
+			resourceName = fmt.Sprintf("%s - %s", resourcePrefix, resourceName)
+		}
 		span.SetTag(ext.ResourceName, resourceName)
 
 		status := ww.Status()
