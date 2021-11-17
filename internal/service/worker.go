@@ -135,32 +135,30 @@ func (w *Worker) Process(
 		storageBytes := storage.Bytes()
 		result = io.NopCloser(storage)
 
-		if w.BypassStoragePut.Bypass(ctx) {
-			return nil
-		}
-
-		baseSpan, ok := ddTracer.SpanFromContext(ctx)
-		if !ok {
-			return fmt.Errorf("fail to get span from context: %w", err)
-		}
-
-		storageSpan, storageCtx := ddTracer.StartSpanFromContext(
-			context.Background(), "Worker.Storage.Put", ddTracer.ChildOf(baseSpan.Context()),
-		)
-		go func() {
-			var err error
-			defer func() { storageSpan.Finish(ddTracer.WithError(err)) }()
-
-			if err = w.Storage.Put(storageCtx, hash, bytes.NewBuffer(storageBytes)); err != nil {
-				logger, nerr := w.TraceExtractor(storageCtx, w.Logger)
-				if nerr != nil {
-					logger.Err(nerr).Msg("Fail to extract the trace ID from the context")
-				}
-
-				err = fmt.Errorf("fail to put the object into the storage: %w", err)
-				logger.Err(err).Msg("Storage put error")
+		if !w.BypassStoragePut.Bypass(ctx) {
+			baseSpan, ok := ddTracer.SpanFromContext(ctx)
+			if !ok {
+				return fmt.Errorf("fail to get span from context: %w", err)
 			}
-		}()
+			storageSpan, storageCtx := ddTracer.StartSpanFromContext(
+				context.Background(), "Worker.Storage.Put", ddTracer.ChildOf(baseSpan.Context()),
+			)
+
+			go func() {
+				var err error
+				defer func() { storageSpan.Finish(ddTracer.WithError(err)) }()
+
+				if err = w.Storage.Put(storageCtx, hash, bytes.NewBuffer(storageBytes)); err != nil {
+					logger, nerr := w.TraceExtractor(storageCtx, w.Logger)
+					if nerr != nil {
+						logger.Err(nerr).Msg("Fail to extract the trace ID from the context")
+					}
+
+					err = fmt.Errorf("fail to put the object into the storage: %w", err)
+					logger.Err(err).Msg("Storage put error")
+				}
+			}()
+		}
 	}
 	defer result.Close()
 
