@@ -10,6 +10,7 @@ import (
 	"github.com/rs/zerolog"
 	ddHTTP "gopkg.in/DataDog/dd-trace-go.v1/contrib/net/http"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
+	"gopkg.in/DataDog/dd-trace-go.v1/profiler"
 
 	"github.com/nitro/lazyraster/v2/internal/service"
 	"github.com/nitro/lazyraster/v2/internal/transport"
@@ -60,6 +61,21 @@ func (c *Client) Init() (err error) {
 		defer func() {
 			if err != nil {
 				tracer.Stop()
+			}
+		}()
+
+		err = profiler.Start(
+			profiler.WithProfileTypes(
+				profiler.CPUProfile,
+				profiler.HeapProfile,
+			),
+		)
+		if err != nil {
+			return fmt.Errorf("failed to start datadog profiler: %w", err)
+		}
+		defer func() {
+			if err != nil {
+				profiler.Stop()
 			}
 		}()
 	}
