@@ -23,7 +23,7 @@ on:
 jobs:
   analyze:
     name: Analyze
-    runs-on: [ self-hosted, linux, x64 , aws, nitrosys]
+    runs-on: [ ubuntu-latest ]
     permissions:
       actions: read
       contents: read
