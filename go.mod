@@ -6,7 +6,7 @@ require (
 	github.com/DataDog/datadog-go v4.8.3+incompatible // indirect
 	github.com/Nitro/urlsign v0.0.0-20181015102600-5c9420004fa4
 	github.com/aws/aws-sdk-go v1.42.53
-	github.com/go-chi/chi/v5 v5.0.4
+	github.com/go-chi/chi/v5 v5.0.7
 	github.com/google/uuid v1.3.0
 	github.com/nitro/lazypdf/v2 v2.0.0-20220215101554-6deec5dcf580
 	github.com/rs/zerolog v1.25.0
