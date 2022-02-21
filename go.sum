@@ -18,8 +18,8 @@ github.com/Microsoft/go-winio v0.5.1 h1:aPJp2QD7OOrhO5tQXqQoGSJc+DjDtWTGLOmNyAm6
 github.com/Microsoft/go-winio v0.5.1/go.mod h1:JPGBdM1cNvN/6ISo+n8V5iA4v8pBzdOpzfwIujj1a84=
 github.com/Nitro/urlsign v0.0.0-20181015102600-5c9420004fa4 h1:PzkFPpKVlnBHKKOrB4hIz/imgFE48mYoQR6t16UVZ78=
 github.com/Nitro/urlsign v0.0.0-20181015102600-5c9420004fa4/go.mod h1:YYI6psmVqfFYrABuvsEk9dXmhd4Sfea17A8I31ipqTM=
-github.com/aws/aws-sdk-go v1.43.0 h1:y4UrPbxU/mIL08qksVPE/nwH9IXuC1udjOaNyhEe+pI=
-github.com/aws/aws-sdk-go v1.43.0/go.mod h1:OGr6lGMAKGlG9CVrYnWYDKIyb829c6EVBRjxqjmPepc=
+github.com/aws/aws-sdk-go v1.43.2 h1:T6LuKCNu8CYXXDn3xJoldh8FbdvuVH7C9aSuLNrlht0=
+github.com/aws/aws-sdk-go v1.43.2/go.mod h1:OGr6lGMAKGlG9CVrYnWYDKIyb829c6EVBRjxqjmPepc=
 github.com/census-instrumentation/opencensus-proto v0.2.1/go.mod h1:f6KPmirojxKA12rnyqOA5BBL4O983OfeGPqjHWSTneU=
 github.com/cespare/xxhash/v2 v2.1.1/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=
 github.com/cespare/xxhash/v2 v2.1.2 h1:YRXhKfTDauu4ajMg1TPgFO5jnlC2HCbmLXMcTG5cbYE=
