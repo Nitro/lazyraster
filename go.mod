@@ -16,7 +16,7 @@ require (
 	github.com/tinylib/msgp v1.1.6 // indirect
 	golang.org/x/sys v0.0.0-20220307203707-22a9840ba4d7 // indirect
 	golang.org/x/time v0.0.0-20220224211638-0e9765cccd65 // indirect
-	gopkg.in/DataDog/dd-trace-go.v1 v1.36.2
+	gopkg.in/DataDog/dd-trace-go.v1 v1.37.0
 )
 
 require (
@@ -35,8 +35,8 @@ require (
 	github.com/philhofer/fwd v1.1.1 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/stretchr/objx v0.1.1 // indirect
+	github.com/stretchr/objx v0.2.0 // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 	google.golang.org/protobuf v1.27.1 // indirect
-	gopkg.in/yaml.v3 v3.0.0-20200313102051-9f266ea9e77c // indirect
+	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
 )
