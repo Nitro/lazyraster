@@ -18,18 +18,10 @@ import (
 func main() {
 	var (
 		logger                 = zerolog.New(os.Stdout).With().Timestamp().Caller().Logger()
-		cacheBucket            = os.Getenv("CACHE_BUCKET")
-		cacheSecret            = os.Getenv("CACHE_SECRET")
 		urlSigningSecret       = os.Getenv("URL_SIGNING_SECRET")
 		enableDatadog          = os.Getenv("ENABLE_DATADOG")
 		rawStorageBucketRegion = os.Getenv("STORAGE_BUCKET_REGION")
 	)
-	if cacheBucket == "" {
-		logger.Fatal().Msg("Environment variable 'CACHE_BUCKET' can't be empty")
-	}
-	if cacheSecret == "" {
-		logger.Fatal().Msg("Environment variable 'CACHE_SECRET' can't be empty")
-	}
 	if urlSigningSecret == "" {
 		logger.Fatal().Msg("Environment variable 'URL_SIGNING_SECRET' can't be empty")
 	}
@@ -46,8 +38,6 @@ func main() {
 	client := internal.Client{
 		Logger:              logger,
 		AsyncErrorHandler:   waitHandlerAsyncError,
-		CacheBucket:         cacheBucket,
-		CacheSecret:         cacheSecret,
 		URLSigningSecret:    urlSigningSecret,
 		EnableDatadog:       enableDatadog == "true",
 		StorageBucketRegion: storageBucketRegion,

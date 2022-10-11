@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -27,21 +26,10 @@ import (
 	ddTracer "gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
-type workerStorage interface {
-	Get(ctx context.Context, key string) (io.ReadCloser, error)
-	Put(ctx context.Context, key string, payload io.Reader) error
-}
-
-type workerBypassStoragePut interface {
-	Bypass(ctx context.Context) bool
-}
-
 // Worker used to fetch and process PDF files.
 type Worker struct {
 	HTTPClient          *http.Client
 	URLSigningSecret    string
-	Storage             workerStorage
-	BypassStoragePut    workerBypassStoragePut
 	Logger              zerolog.Logger
 	TraceExtractor      func(context.Context, zerolog.Logger) (zerolog.Logger, error)
 	StorageBucketRegion map[string]string
@@ -58,12 +46,6 @@ func (w *Worker) Init() error {
 	}
 	if w.URLSigningSecret == "" {
 		return errors.New("internal/service/Worker.URLSigningSecret can't be empty")
-	}
-	if w.Storage == nil {
-		return errors.New("internal/service/Worker.Storage can't be nil")
-	}
-	if w.BypassStoragePut == nil {
-		return errors.New("internal/service/Worker.BypassStoragePut can't be nil")
 	}
 	if w.TraceExtractor == nil {
 		return errors.New("internal/service/Worker.TraceExtractor can't be nil")
@@ -112,54 +94,12 @@ func (w *Worker) Process(
 		return fmt.Errorf("fail to fetch the file: %w", err)
 	}
 
-	hash, err := generateHash(
-		payload,
-		[]byte(strconv.Itoa(page)),
-		[]byte(strconv.Itoa(width)),
-		[]byte(strconv.FormatFloat(float64(scale), 'f', 5, 32)),
-	)
+	storage := bytes.NewBuffer([]byte{})
+	err = lazypdf.SaveToPNG(ctx, uint16(page), uint16(width), scale, bytes.NewBuffer(payload), storage)
 	if err != nil {
-		return fmt.Errorf("fail to generate the hash: %w", err)
+		return fmt.Errorf("fail to extract the PNG from the PDF: %w", err)
 	}
-
-	result, err := w.Storage.Get(ctx, hash)
-	if err != nil {
-		return fmt.Errorf("fail to fetch the object from the storage: %w", err)
-	}
-	if result == nil {
-		storage := bytes.NewBuffer([]byte{})
-		err := lazypdf.SaveToPNG(ctx, uint16(page), uint16(width), scale, bytes.NewBuffer(payload), storage)
-		if err != nil {
-			return fmt.Errorf("fail to extract the PNG from the PDF: %w", err)
-		}
-		storageBytes := storage.Bytes()
-		result = io.NopCloser(storage)
-
-		if !w.BypassStoragePut.Bypass(ctx) {
-			baseSpan, ok := ddTracer.SpanFromContext(ctx)
-			if !ok {
-				return fmt.Errorf("fail to get span from context: %w", err)
-			}
-			storageSpan, storageCtx := ddTracer.StartSpanFromContext(
-				context.Background(), "Worker.Storage.Put", ddTracer.ChildOf(baseSpan.Context()),
-			)
-
-			go func() {
-				var err error
-				defer func() { storageSpan.Finish(ddTracer.WithError(err)) }()
-
-				if err = w.Storage.Put(storageCtx, hash, bytes.NewBuffer(storageBytes)); err != nil {
-					logger, nerr := w.TraceExtractor(storageCtx, w.Logger)
-					if nerr != nil {
-						logger.Err(nerr).Msg("Fail to extract the trace ID from the context")
-					}
-
-					err = fmt.Errorf("fail to put the object into the storage: %w", err)
-					logger.Err(err).Msg("Storage put error")
-				}
-			}()
-		}
-	}
+	result := io.NopCloser(storage)
 	defer result.Close()
 
 	if _, err := io.Copy(output, result); err != nil {
