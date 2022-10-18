@@ -20,17 +20,12 @@ import (
 type Client struct {
 	Logger              zerolog.Logger
 	AsyncErrorHandler   func(error)
-	CacheBucket         string
-	CacheSecret         string
 	URLSigningSecret    string
 	EnableDatadog       bool
 	StorageBucketRegion map[string]string
 
 	server        transport.Server
-	serviceCipher service.Cipher
-	serviceCache  service.Cache
 	serviceWorker service.Worker
-	serviceBypass service.Bypass
 }
 
 // Init the client internal state.
@@ -80,24 +75,8 @@ func (c *Client) Init() (err error) {
 		}()
 	}
 
-	c.serviceCache.HTTPClient = httpClient
-	c.serviceCache.Bucket = c.CacheBucket
-	if err := c.serviceCache.Init(); err != nil {
-		return fmt.Errorf("fail to initialize service cache: %w", err)
-	}
-
-	c.serviceCipher.Key = c.CacheSecret
-	c.serviceCipher.Storage = c.serviceCache
-	if err := c.serviceCipher.Init(); err != nil {
-		return fmt.Errorf("fail to initialize service cipher: %w", err)
-	}
-
-	c.serviceBypass.Service = c.serviceCipher
-
 	c.serviceWorker.URLSigningSecret = c.URLSigningSecret
 	c.serviceWorker.HTTPClient = httpClient
-	c.serviceWorker.Storage = c.serviceBypass
-	c.serviceWorker.BypassStoragePut = c.serviceBypass
 	c.serviceWorker.Logger = c.Logger
 	c.serviceWorker.TraceExtractor = traceLogger(c.EnableDatadog)
 	c.serviceWorker.StorageBucketRegion = c.StorageBucketRegion
