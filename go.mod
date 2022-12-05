@@ -1,6 +1,6 @@
 module github.com/nitro/lazyraster/v2
 
-go 1.17
+go 1.19
 
 require (
 	github.com/DataDog/datadog-go v4.8.3+incompatible // indirect
