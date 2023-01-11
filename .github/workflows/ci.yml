@@ -1,8 +1,8 @@
 on:
   push:
     branches:
-      - '**'
-      - '!main'
+      - "**"
+      - "!main"
 
 name: CI
 jobs:
@@ -16,13 +16,13 @@ jobs:
 
     steps:
       - name: Setup Go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v3
         with:
           go-version: 1.17
 
       - name: Go cache
         id: cache
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: |
             ~/.cache/go-build
@@ -40,7 +40,7 @@ jobs:
           go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.40.1
 
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Dependency linter
         if: matrix.os == 'ubuntu-latest'
