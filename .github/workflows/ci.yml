@@ -58,3 +58,79 @@ jobs:
       - name: Go golangci-lint
         if: matrix.os == 'ubuntu-latest'
         run: golangci-lint run -c misc/golangci/config.yml ./...
+on:
+  push:
+    branches:
+      - "**"
+      - "!main"
+
+name: CI
+jobs:
+  quality:
+    name: Quality
+    timeout-minutes: 10
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Setup Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: 1.17
+
+      - name: Go cache
+        id: cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/Library/Caches/go-build
+            ~/go/pkg/mod
+            ~/go/bin
+          key: ${{ matrix.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ matrix.os }}-go-
+      - name: Install dependencies
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          go install github.com/mfridman/tparse@v0.8.3
+          go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.40.1
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Dependency linter
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          go mod tidy
+          git add .
+          git diff --cached --exit-code
+      - name: Build
+        run: go build ./...
+
+      - name: Test
+        run: go test -race -cover -covermode=atomic -json ./... | tparse -all
+
+      - name: Go golangci-lint
+        if: matrix.os == 'ubuntu-latest'
+        run: golangci-lint run -c misc/golangci/config.yml ./...
+
+  security:
+    name: security check
+    timeout-minutes: 10
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@master
+      - name: Run Snyk to check for vulnerabilities
+        uses: snyk/actions/golang@master
+        with:
+          args: config set endpoint=https://app.eu.snyk.io/api
+          command: test
+        env:
+          
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}

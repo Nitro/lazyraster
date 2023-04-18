@@ -18,4 +18,5 @@ jobs:
           args: config set endpoint=https://app.eu.snyk.io/api
           command: test
         env:
+          SNYK_API: https://eu.snyk.io/api/v1
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
