@@ -8,10 +8,8 @@ name: Snyk Security Check
 jobs:
   security:
     name: security check
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
+    runs-on: [self-hosted, linux, x64]
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@master
       - name: Run Snyk to check for vulnerabilities
