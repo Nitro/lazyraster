@@ -15,7 +15,7 @@ jobs:
       - name: Run Snyk to check for vulnerabilities
         uses: snyk/actions/golang@master
         with:
-          args: config set endpoint=https://app.eu.snyk.io/api
+          args: snyk config set endpoint=https://app.eu.snyk.io/api
           command: test
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
