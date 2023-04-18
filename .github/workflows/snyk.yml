@@ -1,0 +1,22 @@
+on:
+  push:
+    branches:
+      - "**"
+      - "!main"
+
+name: Snyk Security Check
+jobs:
+  security:
+    name: security check
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@master
+      - name: Run Snyk to check for vulnerabilities
+        uses: snyk/actions/golang@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: config set endpoint=https://app.eu.snyk.io/api
