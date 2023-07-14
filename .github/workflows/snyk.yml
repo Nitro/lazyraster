@@ -1,0 +1,43 @@
+name: CI / snyk.io
+
+on:
+  push:
+    branches:
+      - "**"
+      - "!main"
+
+jobs:
+  snyk:
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        target:
+          [
+            dependency-test,
+            code-test,
+          ]
+        include:
+          - target: dependency-test
+            name: Snyk dependency scan
+            cmd: snyk test --all-projects --exclude=misc --severity-threshold=high
+            continue-on-error: true
+          - target: code-test
+            name: Snyk code analysis
+            cmd: snyk code test --severity-threshold=high
+            continue-on-error: false
+    runs-on: ${{ matrix.os }}
+    name: "${{ matrix.name }}"
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - uses: snyk/actions/setup@master
+      - uses: actions/setup-go@v1
+        with:
+          go-version: '1.17'
+
+      - name: Exec ${{ matrix.target }}
+        env:
+          SNYK_TOKEN: ${{ secrets.sn_x_pub }}
+          SNYK_API: https://app.eu.snyk.io/api
+        run: ${{ matrix.cmd }} --org=nitro-x
