@@ -1,0 +1,19 @@
+name: Dependabot auto-merge
+on:
+  workflow_run:
+    types:
+      - completed
+    workflows:
+      - 'CI'
+
+jobs:
+  dependabot:
+    runs-on: ubuntu-latest
+    if: ${{ github.actor == 'dependabot[bot]' }}
+    steps:
+      - name: Merge the PR
+        if: ${{ github.event.workflow_run.conclusion == 'success' }}
+        uses: ridedott/merge-me-action@v2
+        with:
+          GITHUB_TOKEN: ${{ secrets.NITRO_ROBOT_COMMIT_TOKEN }}
+          PRESET: DEPENDABOT_MINOR
