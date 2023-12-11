@@ -7,7 +7,7 @@ require (
 	github.com/Nitro/urlsign v0.0.0-20181015102600-5c9420004fa4
 	github.com/aws/aws-sdk-go v1.44.126
 	github.com/go-chi/chi/v5 v5.0.8
-	github.com/google/uuid v1.3.0
+	github.com/google/uuid v1.4.0
 	github.com/nitro/lazypdf/v2 v2.0.0-20220309113525-b152d66ca74a
 	github.com/rs/zerolog v1.29.0
 	github.com/sirupsen/logrus v1.8.1 // indirect
