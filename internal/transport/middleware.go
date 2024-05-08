@@ -83,7 +83,7 @@ func (m middleware) logger(next http.Handler) http.Handler {
 
 		t1 := time.Now()
 		reqID := chiMiddleware.GetReqID(r.Context())
-		entry := log.Info().
+		entry := log.Debug().
 			Str("requestID", reqID).
 			Str("method", r.Method).
 			Str("endpoint", requestURI).
@@ -111,7 +111,7 @@ func (m middleware) logger(next http.Handler) http.Handler {
 		next.ServeHTTP(ww, r)
 
 		status := ww.Status()
-		entry = log.Info().
+		entry = log.Debug().
 			Err(r.Context().Err()).
 			Str("requestID", reqID).
 			Dur("duration", time.Since(t1)).
