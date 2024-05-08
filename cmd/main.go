@@ -17,7 +17,7 @@ import (
 
 func main() {
 	var (
-		logger                 = zerolog.New(os.Stdout).With().Timestamp().Caller().Logger()
+		logger                 = zerolog.New(os.Stdout).With().Timestamp().Caller().Logger().Level(zerolog.InfoLevel)
 		urlSigningSecret       = os.Getenv("URL_SIGNING_SECRET")
 		enableDatadog          = os.Getenv("ENABLE_DATADOG")
 		rawStorageBucketRegion = os.Getenv("STORAGE_BUCKET_REGION")
