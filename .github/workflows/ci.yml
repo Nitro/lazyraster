@@ -11,18 +11,18 @@ jobs:
     timeout-minutes: 10
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest]
     runs-on: ${{ matrix.os }}
 
     steps:
       - name: Setup Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v5
         with:
-          go-version: 1.17
+          go-version: 1.22.4
 
       - name: Go cache
         id: cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cache/go-build
@@ -36,11 +36,11 @@ jobs:
       - name: Install dependencies
         if: steps.cache.outputs.cache-hit != 'true'
         run: |
-          go install github.com/mfridman/tparse@v0.8.3
-          go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.40.1
+          go install github.com/mfridman/tparse@v0.13.3
+          go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.59.0
 
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Dependency linter
         if: matrix.os == 'ubuntu-latest'
