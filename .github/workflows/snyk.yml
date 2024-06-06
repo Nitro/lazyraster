@@ -29,12 +29,12 @@ jobs:
     name: "${{ matrix.name }}"
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - uses: snyk/actions/setup@master
-      - uses: actions/setup-go@v1
+      - uses: actions/setup-go@v5
         with:
-          go-version: '1.17'
+          go-version: '1.22.4'
 
       - name: Exec ${{ matrix.target }}
         env:

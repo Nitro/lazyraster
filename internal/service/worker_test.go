@@ -137,11 +137,13 @@ func TestWorkerProcess(t *testing.T) {
 					Bucket: aws.String("bucket-1"),
 					Key:    aws.String("file.pdf"),
 				}
-				output := s3.GetObjectOutput{Body: io.NopCloser(bytes.NewBuffer([]byte{}))}
+				payload, err := os.ReadFile("testdata/logo.png")
+				require.NoError(t, err)
+				output := s3.GetObjectOutput{Body: io.NopCloser(bytes.NewBuffer(payload))}
 				client.On("GetObjectWithContext", mock.Anything, &input).Return(&output, nil)
 				return &client
 			},
-			expectedError: "fail to extract the PNG from the PDF: failure at the C/MuPDF layer: cannot tell in file",
+			expectedError: "fail to extract the PNG from the PDF: failure at the C/MuPDF layer: no objects found",
 		},
 		{
 			message: "process and return a page",
@@ -163,6 +165,7 @@ func TestWorkerProcess(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		t.Run("Should "+tt.message, func(t *testing.T) {
 			t.Parallel()
 
