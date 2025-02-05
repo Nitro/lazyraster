@@ -94,8 +94,13 @@ func (w *Worker) Process(
 		return fmt.Errorf("fail to fetch the file: %w", err)
 	}
 
+	if len(payload) == 0 {
+		return fmt.Errorf("empty payload")
+	}
+
 	storage := bytes.NewBuffer([]byte{})
-	err = lazypdf.SaveToPNG(ctx, uint16(page), uint16(width), scale, bytes.NewBuffer(payload), storage)
+	dpi := 96
+	err = lazypdf.SaveToPNG(ctx, uint16(page), uint16(width), scale, dpi, bytes.NewBuffer(payload), storage)
 	if err != nil {
 		return fmt.Errorf("fail to extract the PNG from the PDF: %w", err)
 	}

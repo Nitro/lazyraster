@@ -141,7 +141,7 @@ func TestWorkerProcess(t *testing.T) {
 				client.On("GetObjectWithContext", mock.Anything, &input).Return(&output, nil)
 				return &client
 			},
-			expectedError: "fail to extract the PNG from the PDF: failure at the C/MuPDF layer: cannot tell in file",
+			expectedError: "empty payload",
 		},
 		{
 			message: "process and return a page",
