@@ -86,7 +86,7 @@ func (h handler) document(w http.ResponseWriter, r *http.Request) {
 
 	path := strings.TrimPrefix(r.URL.Path, "/documents/")
 	buf := bytes.NewBuffer([]byte{})
-	err = h.documentService.Process(r.Context(), r.URL.String(), path, page, width, float32(scale), buf)
+	err = h.documentService.Process(r.Context(), h.urlToVerify(r), path, page, width, float32(scale), buf)
 	if ctxErr := r.Context().Err(); ctxErr != nil {
 		logger.Err(ctxErr).Str("requestID", reqID).Msg("Context error")
 		if ctxErr == context.Canceled {
@@ -124,7 +124,7 @@ func (h handler) metadata(w http.ResponseWriter, r *http.Request) {
 	}
 
 	path := strings.TrimPrefix(r.URL.Path, "/documents/")
-	fileName, pageCount, err := h.documentService.Metadata(r.Context(), r.URL.String(), path)
+	fileName, pageCount, err := h.documentService.Metadata(r.Context(), h.urlToVerify(r), path)
 	if ctxErr := r.Context().Err(); ctxErr != nil {
 		logger.Err(ctxErr).Str("requestID", reqID).Msg("Context error")
 		if ctxErr == context.Canceled {
@@ -149,4 +149,17 @@ func (h handler) metadata(w http.ResponseWriter, r *http.Request) {
 		"PageCount": pageCount,
 	}
 	h.writer.response(r.Context(), w, result, http.StatusOK)
+}
+
+// Remove all the parameters, but the token and page, from the path. Other parameters can then be passed to the service
+// without making the url signature invalid.
+func (h handler) urlToVerify(r *http.Request) string {
+	q := r.URL.Query()
+	for key := range q {
+		if key == "page" || key == "token" {
+			continue
+		}
+		q.Del(key)
+	}
+	return r.URL.String()
 }
