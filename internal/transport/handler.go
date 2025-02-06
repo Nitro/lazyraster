@@ -153,7 +153,7 @@ func (h handler) metadata(w http.ResponseWriter, r *http.Request) {
 
 // Remove all the parameters, but the token and page, from the path. Other parameters can then be passed to the service
 // without making the url signature invalid.
-func (h handler) urlToVerify(r *http.Request) string {
+func (handler) urlToVerify(r *http.Request) string {
 	q := r.URL.Query()
 	for key := range q {
 		if key == "page" || key == "token" {
@@ -161,5 +161,6 @@ func (h handler) urlToVerify(r *http.Request) string {
 		}
 		q.Del(key)
 	}
+	r.URL.RawQuery = q.Encode()
 	return r.URL.String()
 }
