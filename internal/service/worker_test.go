@@ -186,7 +186,7 @@ func TestWorkerProcess(t *testing.T) {
 				getS3Client:         getS3Client,
 			}
 			require.NoError(t, w.Init())
-			err := w.Process(context.Background(), tt.url, tt.path, tt.page, tt.width, tt.scale, bytes.NewBuffer([]byte{}))
+			err := w.Process(context.Background(), tt.url, tt.path, tt.page, tt.width, tt.scale, 72, bytes.NewBuffer([]byte{}))
 			require.Equal(t, tt.expectedError == "", err == nil)
 			if tt.expectedError != "" {
 				require.Equal(t, tt.expectedError, err.Error())

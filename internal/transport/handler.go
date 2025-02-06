@@ -17,7 +17,7 @@ import (
 )
 
 type handlerDocumentService interface {
-	Process(context.Context, string, string, int, int, float32, io.Writer) error
+	Process(context.Context, string, string, int, int, float32, int, io.Writer) error
 	Metadata(context.Context, string, string) (string, int, error)
 }
 
@@ -73,6 +73,17 @@ func (h handler) document(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	var dpi int
+	rawDPI := r.URL.Query().Get("dpi")
+	if rawDPI != "" {
+		dpi, err = strconv.Atoi(rawDPI)
+		if err != nil {
+			logger.Err(err).Str("requestID", reqID).Msg("Invalid 'dpi' parameter")
+			h.writer.error(r.Context(), w, fmt.Sprintf("Request ID '%s'", reqID), nil, http.StatusBadRequest)
+			return
+		}
+	}
+
 	var scale float64
 	rawScale := r.URL.Query().Get("scale")
 	if rawScale != "" {
@@ -86,7 +97,7 @@ func (h handler) document(w http.ResponseWriter, r *http.Request) {
 
 	path := strings.TrimPrefix(r.URL.Path, "/documents/")
 	buf := bytes.NewBuffer([]byte{})
-	err = h.documentService.Process(r.Context(), h.urlToVerify(r), path, page, width, float32(scale), buf)
+	err = h.documentService.Process(r.Context(), h.urlToVerify(r), path, page, width, float32(scale), dpi, buf)
 	if ctxErr := r.Context().Err(); ctxErr != nil {
 		logger.Err(ctxErr).Str("requestID", reqID).Msg("Context error")
 		if ctxErr == context.Canceled {
