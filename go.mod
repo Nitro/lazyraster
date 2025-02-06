@@ -62,7 +62,6 @@ require (
 // Version v1.71.1 is breaking the build.
 replace gopkg.in/DataDog/dd-trace-go.v1 v1.71.1 => gopkg.in/DataDog/dd-trace-go.v1 v1.67.1
 
-// This version had to be pinned because the last few commits did not include any Go changes and it's likely
-// the reason why 'go get -u ./...' is not bumping the version. But they're important because they include
-// new C libraries used by lazypdf.
-replace github.com/nitro/lazypdf/v2 v2.0.0-20250205120532-48aae54bfd96 => github.com/nitro/lazypdf/v2 v2.0.0-20250205171610-bfd709fec6cd
+// lazypdf version needs to be pinned as well because of the dd-trace-go version pinning which prevents the lazypdf version from being
+// updated.
+replace github.com/nitro/lazypdf/v2 v2.0.0-20250205120532-48aae54bfd96 => github.com/nitro/lazypdf/v2 v2.0.0-20250206115348-1829ea1fd728

@@ -85,8 +85,8 @@ github.com/mattn/go-isatty v0.0.20 h1:xfD0iDuEKnDkl03q4limB+vH+GxLEtL/jb4xVJSWWE
 github.com/mattn/go-isatty v0.0.20/go.mod h1:W+V8PltTTMOvKvAeJH7IuucS94S2C6jfK/D7dTCTo3Y=
 github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c h1:cqn374mizHuIWj+OSJCajGr/phAmuMug9qIX3l9CflE=
 github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c/go.mod h1:bFUtVrKA4DC2yAKiSyO/QUcy7e+RRV2QTWOzhPopBRo=
-github.com/nitro/lazypdf/v2 v2.0.0-20250205171610-bfd709fec6cd h1:iNpUVFqOQHdmySemiibLm6r1qY5qYSIExP2+bm7M280=
-github.com/nitro/lazypdf/v2 v2.0.0-20250205171610-bfd709fec6cd/go.mod h1:cAh1CSLNZXNh+PizhypjyoEyWz2cSjcGKe9EUBhEfxA=
+github.com/nitro/lazypdf/v2 v2.0.0-20250206115348-1829ea1fd728 h1:lYbrSO6dULPPxdTBI/mwM+do3M7g1BtcNNtOYGleWA8=
+github.com/nitro/lazypdf/v2 v2.0.0-20250206115348-1829ea1fd728/go.mod h1:cAh1CSLNZXNh+PizhypjyoEyWz2cSjcGKe9EUBhEfxA=
 github.com/opentracing/opentracing-go v1.2.0 h1:uEJPy/1a5RIPAJ0Ov+OIO8OxWu77jEv+1B0VhjKrZUs=
 github.com/opentracing/opentracing-go v1.2.0/go.mod h1:GxEUsuufX4nBwe+T+Wl9TAgYrxe9dPLANfrWvHYVTgc=
 github.com/outcaste-io/ristretto v0.2.3 h1:AK4zt/fJ76kjlYObOeNwh4T3asEuaCmp26pOvUOL9w0=
