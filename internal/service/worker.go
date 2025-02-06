@@ -99,7 +99,7 @@ func (w *Worker) Process(
 	}
 
 	storage := bytes.NewBuffer([]byte{})
-	dpi := 96
+	dpi := 72
 	//nolint:gosec,G115
 	err = lazypdf.SaveToPNG(ctx, uint16(page), uint16(width), scale, dpi, bytes.NewBuffer(payload), storage)
 	if err != nil {
