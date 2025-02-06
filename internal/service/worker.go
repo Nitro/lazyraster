@@ -61,7 +61,7 @@ func (w *Worker) Init() error {
 }
 
 func (w *Worker) Process(
-	ctx context.Context, url, path string, page int, width int, scale float32, output io.Writer,
+	ctx context.Context, url, path string, page int, width int, scale float32, dpi int, output io.Writer,
 ) (err error) {
 	span, ctx := w.startSpan(ctx, "Worker.Process")
 	defer func() { span.Finish(ddTracer.WithError(err)) }()
@@ -85,6 +85,10 @@ func (w *Worker) Process(
 		return newClientError(errors.New("invalid scale, can't be bigger than 3"))
 	}
 
+	if dpi > 600 {
+		return newClientError(errors.New("invalid dpi, can't  be bigger than 600"))
+	}
+
 	if !urlsign.IsValidSignature(w.URLSigningSecret, 8*time.Hour, time.Now(), url) {
 		return newClientError(errors.New("invalid token"))
 	}
@@ -99,7 +103,6 @@ func (w *Worker) Process(
 	}
 
 	storage := bytes.NewBuffer([]byte{})
-	dpi := 72
 	//nolint:gosec,G115
 	err = lazypdf.SaveToPNG(ctx, uint16(page), uint16(width), scale, dpi, bytes.NewBuffer(payload), storage)
 	if err != nil {
