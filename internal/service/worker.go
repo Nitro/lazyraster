@@ -61,7 +61,7 @@ func (w *Worker) Init() error {
 }
 
 func (w *Worker) Process(
-	ctx context.Context, url, path string, page int, width int, scale float32, dpi int, output io.Writer,
+	ctx context.Context, url, path string, page int, width int, scale float32, dpi int, output io.Writer, format string,
 ) (err error) {
 	span, ctx := w.startSpan(ctx, "Worker.Process")
 	defer func() { span.Finish(ddTracer.WithError(err)) }()
@@ -103,10 +103,21 @@ func (w *Worker) Process(
 	}
 
 	storage := bytes.NewBuffer([]byte{})
-	//nolint:gosec,G115
-	err = lazypdf.SaveToPNG(ctx, uint16(page), uint16(width), scale, dpi, bytes.NewBuffer(payload), storage)
-	if err != nil {
-		return fmt.Errorf("fail to extract the PNG from the PDF: %w", err)
+	switch format {
+	case "png":
+		//nolint:gosec,G115
+		err = lazypdf.SaveToPNG(ctx, uint16(page), uint16(width), scale, dpi, bytes.NewBuffer(payload), storage)
+		if err != nil {
+			return fmt.Errorf("fail to extract the PNG from the PDF: %w", err)
+		}
+	case "html":
+		//nolint:gosec,G115
+		err = lazypdf.SaveToHTML(ctx, uint16(page), uint16(width), scale, dpi, bytes.NewBuffer(payload), storage)
+		if err != nil {
+			return fmt.Errorf("fail to render the PDF page to HTML: %w", err)
+		}
+	default:
+		return fmt.Errorf("unknown format '%s'", format)
 	}
 	result := io.NopCloser(storage)
 	defer result.Close()

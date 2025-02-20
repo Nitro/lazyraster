@@ -17,7 +17,7 @@ import (
 )
 
 type handlerDocumentService interface {
-	Process(context.Context, string, string, int, int, float32, int, io.Writer) error
+	Process(context.Context, string, string, int, int, float32, int, io.Writer, string) error
 	Metadata(context.Context, string, string) (string, int, error)
 }
 
@@ -37,7 +37,7 @@ func (h handler) methodNotAllowed(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h handler) health(w http.ResponseWriter, r *http.Request) {
-	h.writer.response(r.Context(), w, map[string]interface{}{"status": "healthy"}, http.StatusOK)
+	h.writer.response(r.Context(), w, map[string]interface{}{"status": "healthy"}, http.StatusOK, "application/json")
 }
 
 func (h handler) document(w http.ResponseWriter, r *http.Request) {
@@ -95,9 +95,24 @@ func (h handler) document(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	var contentType string
+	format := r.URL.Query().Get("format")
+	switch format {
+	case "png":
+		contentType = "image/png"
+	case "html":
+		contentType = "text/html"
+	case "":
+		contentType = "image/png"
+		format = "png"
+	default:
+		logger.Err(err).Str("requestID", reqID).Msg("Invalid 'format' parameter")
+		h.writer.error(r.Context(), w, fmt.Sprintf("Request ID '%s'", reqID), nil, http.StatusBadRequest)
+		return
+	}
 	path := strings.TrimPrefix(r.URL.Path, "/documents/")
 	buf := bytes.NewBuffer([]byte{})
-	err = h.documentService.Process(r.Context(), h.urlToVerify(r), path, page, width, float32(scale), dpi, buf)
+	err = h.documentService.Process(r.Context(), h.urlToVerify(r), path, page, width, float32(scale), dpi, buf, format)
 	if ctxErr := r.Context().Err(); ctxErr != nil {
 		logger.Err(ctxErr).Str("requestID", reqID).Msg("Context error")
 		if ctxErr == context.Canceled {
@@ -119,6 +134,7 @@ func (h handler) document(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("content-length", strconv.Itoa(len(buf.Bytes())))
+	w.Header().Set("content-type", contentType)
 	w.WriteHeader(http.StatusOK)
 	if _, err := w.Write(buf.Bytes()); err != nil {
 		logger.Err(err).Str("requestID", reqID).Msg("Fail to write the response back to the client")
@@ -159,7 +175,7 @@ func (h handler) metadata(w http.ResponseWriter, r *http.Request) {
 		"Filename":  fileName,
 		"PageCount": pageCount,
 	}
-	h.writer.response(r.Context(), w, result, http.StatusOK)
+	h.writer.response(r.Context(), w, result, http.StatusOK, "application/json")
 }
 
 // Remove all the parameters, but the token and page, from the path. Other parameters can then be passed to the service

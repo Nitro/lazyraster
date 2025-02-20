@@ -64,4 +64,4 @@ replace gopkg.in/DataDog/dd-trace-go.v1 v1.71.1 => gopkg.in/DataDog/dd-trace-go.
 
 // lazypdf version needs to be pinned as well because of the dd-trace-go version pinning which prevents the lazypdf version from being
 // updated.
-replace github.com/nitro/lazypdf/v2 v2.0.0-20250205120532-48aae54bfd96 => github.com/nitro/lazypdf/v2 v2.0.0-20250206115348-1829ea1fd728
+replace github.com/nitro/lazypdf/v2 v2.0.0-20250205120532-48aae54bfd96 => github.com/nitro/lazypdf/v2 v2.0.0-20250220163903-ee81e115f55e

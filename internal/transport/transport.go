@@ -19,7 +19,7 @@ type writer struct {
 	traceExtractor traceExtractor
 }
 
-func (wrt writer) response(ctx context.Context, w http.ResponseWriter, r interface{}, status int) {
+func (wrt writer) response(ctx context.Context, w http.ResponseWriter, r interface{}, status int, contentType string) {
 	logger, err := wrt.traceExtractor(ctx, wrt.logger)
 	if err != nil {
 		logger.Err(err).Msg("Fail to extract the tracing ids")
@@ -30,7 +30,7 @@ func (wrt writer) response(ctx context.Context, w http.ResponseWriter, r interfa
 		w.WriteHeader(status)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", contentType)
 	w.WriteHeader(status)
 
 	content, err := json.Marshal(r)
@@ -61,5 +61,5 @@ func (wrt writer) error(ctx context.Context, w http.ResponseWriter, title string
 	if err != nil {
 		resp.Error.Detail = err.Error()
 	}
-	wrt.response(ctx, w, &resp, status)
+	wrt.response(ctx, w, &resp, status, "application/json")
 }
