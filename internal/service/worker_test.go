@@ -162,36 +162,40 @@ func TestWorkerProcess(t *testing.T) {
 			},
 		},
 	}
-	for _, tt := range tests {
-		t.Run("Should "+tt.message, func(t *testing.T) {
-			t.Parallel()
+	for _, format := range []string{"png", "html"} {
+		for _, tt := range tests {
+			t.Run(fmt.Sprintf("Should %s (%s)", tt.message, format), func(t *testing.T) {
+				t.Parallel()
 
-			var (
-				s3Client    *mockS3
-				getS3Client func(string) (s3iface.S3API, error)
-			)
-			if tt.s3Client != nil {
-				s3Client = tt.s3Client(t)
-				defer s3Client.AssertExpectations(t)
-				getS3Client = func(string) (s3iface.S3API, error) {
-					return s3Client, nil
+				var (
+					s3Client    *mockS3
+					getS3Client func(string) (s3iface.S3API, error)
+				)
+				if tt.s3Client != nil {
+					s3Client = tt.s3Client(t)
+					defer s3Client.AssertExpectations(t)
+					getS3Client = func(string) (s3iface.S3API, error) {
+						return s3Client, nil
+					}
 				}
-			}
 
-			w := Worker{
-				HTTPClient:          http.DefaultClient,
-				URLSigningSecret:    urlSecret,
-				TraceExtractor:      traceExtractor,
-				StorageBucketRegion: map[string]string{"eu-central-1": "bucket-1"},
-				getS3Client:         getS3Client,
-			}
-			require.NoError(t, w.Init())
-			err := w.Process(context.Background(), tt.url, tt.path, tt.page, tt.width, tt.scale, 72, bytes.NewBuffer([]byte{}))
-			require.Equal(t, tt.expectedError == "", err == nil)
-			if tt.expectedError != "" {
-				require.Equal(t, tt.expectedError, err.Error())
-			}
-		})
+				w := Worker{
+					HTTPClient:          http.DefaultClient,
+					URLSigningSecret:    urlSecret,
+					TraceExtractor:      traceExtractor,
+					StorageBucketRegion: map[string]string{"eu-central-1": "bucket-1"},
+					getS3Client:         getS3Client,
+				}
+				require.NoError(t, w.Init())
+				err := w.Process(
+					context.Background(), tt.url, tt.path, tt.page, tt.width, tt.scale, 72, bytes.NewBuffer([]byte{}), format,
+				)
+				require.Equal(t, tt.expectedError == "", err == nil)
+				if tt.expectedError != "" {
+					require.Equal(t, tt.expectedError, err.Error())
+				}
+			})
+		}
 	}
 }
 
