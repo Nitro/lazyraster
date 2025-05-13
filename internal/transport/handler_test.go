@@ -33,6 +33,10 @@ func TestHandlerURLToVerify(t *testing.T) {
 			path:     "/path?page=1&token=2&scale=3&width=4",
 			expected: "/path?page=1&token=2",
 		},
+		{
+			path:     "/path?page=1&token=2&scale=3&width=4&token-ttl=5",
+			expected: "/path?page=1&token=2&token-ttl=5",
+		},
 	}
 	for i, tt := range tests {
 		t.Run(fmt.Sprintf("Scenario %d", i), func(t *testing.T) {

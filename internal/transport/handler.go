@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -183,7 +184,7 @@ func (h handler) metadata(w http.ResponseWriter, r *http.Request) {
 func (handler) urlToVerify(r *http.Request) string {
 	q := r.URL.Query()
 	for key := range q {
-		if key == "page" || key == "token" {
+		if slices.Contains([]string{"page", "token", "token-ttl"}, key) {
 			continue
 		}
 		q.Del(key)
