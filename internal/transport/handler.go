@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	chiMiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/rs/zerolog"
@@ -92,6 +93,20 @@ func (h handler) document(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			logger.Err(err).Str("requestID", reqID).Msg("Invalid 'scale' parameter")
 			h.writer.error(r.Context(), w, fmt.Sprintf("Request ID '%s'", reqID), nil, http.StatusBadRequest)
+			return
+		}
+	}
+
+	if rawTokenTTL := r.URL.Query().Get("token-ttl"); rawTokenTTL != "" {
+		parsedTokenTTL, err := strconv.ParseInt(rawTokenTTL, 10, 64)
+		if err != nil {
+			logger.Err(err).Str("requestID", reqID).Msg("Invalid 'token-ttl' parameter")
+			h.writer.error(r.Context(), w, fmt.Sprintf("Request ID '%s'", reqID), nil, http.StatusBadRequest)
+			return
+		}
+		if time.Now().After(time.Unix(parsedTokenTTL, 0)) {
+			logger.Debug().Str("requestID", reqID).Msg("Token has expired")
+			h.writer.error(r.Context(), w, fmt.Sprintf("Request ID '%s'", reqID), nil, http.StatusUnauthorized)
 			return
 		}
 	}

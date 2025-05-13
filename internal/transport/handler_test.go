@@ -1,10 +1,15 @@
 package transport
 
 import (
+	"context"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
+	"strconv"
 	"testing"
+	"time"
 
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
 )
 
@@ -47,4 +52,24 @@ func TestHandlerURLToVerify(t *testing.T) {
 			require.Equal(t, tt.expected, h.urlToVerify(req))
 		})
 	}
+}
+
+func TestHandlerDocumentTokenTTLExpired(t *testing.T) {
+	ttl := time.Now().UTC().Add(-1 * time.Hour).Unix()
+	strconv.FormatInt(ttl, 10)
+	path := fmt.Sprintf("/documents?page=1&token-ttl=%s", strconv.FormatInt(ttl, 10))
+	req := httptest.NewRequest("GET", path, nil)
+	rr := httptest.NewRecorder()
+	traceExtractor := func(context.Context, zerolog.Logger) (zerolog.Logger, error) {
+		return zerolog.Nop(), nil
+	}
+	h := handler{
+		traceExtractor: traceExtractor,
+		writer: writer{
+			logger:         zerolog.Nop(),
+			traceExtractor: traceExtractor,
+		},
+	}
+	h.document(rr, req)
+	require.Equal(t, http.StatusUnauthorized, rr.Code)
 }
