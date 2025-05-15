@@ -18,6 +18,8 @@ require (
 	gopkg.in/DataDog/dd-trace-go.v1 v1.71.1
 )
 
+require github.com/redis/go-redis/v9 v9.1.0
+
 require (
 	github.com/DataDog/appsec-internal-go v1.10.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.62.1 // indirect
@@ -31,6 +33,7 @@ require (
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
+	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/eapache/queue/v2 v2.0.0-20230407133247-75960ed334e4 // indirect
 	github.com/ebitengine/purego v0.8.2 // indirect

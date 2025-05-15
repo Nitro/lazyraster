@@ -26,6 +26,10 @@ import (
 	ddTracer "gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
+type workerAnnotationStorage interface {
+	FetchAnnotation(context.Context, string) ([]any, error)
+}
+
 // Worker used to fetch and process PDF files.
 type Worker struct {
 	HTTPClient          *http.Client
@@ -33,6 +37,7 @@ type Worker struct {
 	Logger              zerolog.Logger
 	TraceExtractor      func(context.Context, zerolog.Logger) (zerolog.Logger, error)
 	StorageBucketRegion map[string]string
+	AnnotationStorage   workerAnnotationStorage
 
 	getS3Client func(string) (s3iface.S3API, error)
 	s3Clients   map[string]s3iface.S3API

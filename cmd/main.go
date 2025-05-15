@@ -41,6 +41,9 @@ func main() {
 		URLSigningSecret:    urlSigningSecret,
 		EnableDatadog:       enableDatadog == "true",
 		StorageBucketRegion: storageBucketRegion,
+		RedisURL:            os.Getenv("REDIS_URL"),
+		RedisUsername:       os.Getenv("REDIS_USERNAME"),
+		RedisPassword:       os.Getenv("REDIS_PASSWORD"),
 	}
 	if err := client.Init(); err != nil {
 		logger.Fatal().Err(err).Msg("Fail to initialize the client")
