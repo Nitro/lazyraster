@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -21,9 +23,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/nitro/lazypdf/v2"
 	"github.com/rs/zerolog"
+	"golang.org/x/sync/errgroup"
 	awstrace "gopkg.in/DataDog/dd-trace-go.v1/contrib/aws/aws-sdk-go/aws"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace"
 	ddTracer "gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
+
+	"github.com/nitro/lazyraster/v2/internal/domain"
 )
 
 type workerAnnotationStorage interface {
@@ -98,26 +103,76 @@ func (w *Worker) Process(
 		return newClientError(errors.New("invalid token"))
 	}
 
-	payload, err := w.fetchFile(ctx, path)
-	if err != nil {
-		return fmt.Errorf("fail to fetch the file: %w", err)
-	}
+	// Fetch the file in a goroutine to allow the annotations to be processed while the payload is being fetch.
+	chanPayload := make(chan []byte)
+	chanError := make(chan error)
+	go func() {
+		payload, err := w.fetchFile(ctx, path)
+		if err != nil {
+			chanError <- fmt.Errorf("fail to fetch the file: %w", err)
+			return
+		}
 
-	if len(payload) == 0 {
-		return fmt.Errorf("empty payload")
-	}
+		if len(payload) == 0 {
+			chanError <- fmt.Errorf("empty payload")
+			return
+		}
+
+		chanPayload <- payload
+	}()
 
 	storage := bytes.NewBuffer([]byte{})
 	switch format {
 	case "png":
+		token, err := w.extractToken(url)
+		if err != nil {
+			return fmt.Errorf("failed to extract the token: %w", err)
+		}
+
+		annotations, annotationsCleanup, err := w.fetchAnnotations(ctx, token)
+		if err != nil {
+			return fmt.Errorf("failed to fetch the annotations: %w", err)
+		}
+		defer annotationsCleanup()
+
+		var rawPayload []byte
+		select {
+		case err := <-chanError:
+			return err
+		case rawPayload = <-chanPayload:
+		}
+
+		var payload io.Reader
+		if len(annotations) > 0 {
+			result, resultCleanup, err := w.processAnnotations(bytes.NewBuffer(rawPayload), annotations)
+			if err != nil {
+				return fmt.Errorf("failed to process the annotations: %w", err)
+			}
+			defer resultCleanup()
+
+			p, err := os.ReadFile(result)
+			if err != nil {
+				return fmt.Errorf("failed to read the PDF file: %w", err)
+			}
+			payload = bytes.NewBuffer(p)
+		} else {
+			payload = bytes.NewBuffer(rawPayload)
+		}
+
 		//nolint:gosec,G115
-		err = lazypdf.SaveToPNG(ctx, uint16(page), uint16(width), scale, dpi, bytes.NewBuffer(payload), storage)
+		err = lazypdf.SaveToPNG(ctx, uint16(page), uint16(width), scale, dpi, payload, storage)
 		if err != nil {
 			return fmt.Errorf("fail to extract the PNG from the PDF: %w", err)
 		}
 	case "html":
+		var rawPayload []byte
+		select {
+		case err := <-chanError:
+			return err
+		case rawPayload = <-chanPayload:
+		}
 		//nolint:gosec,G115
-		err = lazypdf.SaveToHTML(ctx, uint16(page), uint16(width), scale, dpi, bytes.NewBuffer(payload), storage)
+		err = lazypdf.SaveToHTML(ctx, uint16(page), uint16(width), scale, dpi, bytes.NewBuffer(rawPayload), storage)
 		if err != nil {
 			return fmt.Errorf("fail to render the PDF page to HTML: %w", err)
 		}
@@ -163,11 +218,23 @@ func (w *Worker) fetchFile(ctx context.Context, path string) (_ []byte, err erro
 		return w.fetchFileFromDropbox(ctx, path)
 	}
 
-	fragments := strings.Split(path, "/")
-	if len(fragments) < 2 {
-		return nil, newClientError(errors.New("invalid path"))
+	var bucket, filePath string
+	if strings.HasPrefix(path, "s3://") {
+		path = strings.TrimPrefix(path, "s3://")
+		parts := strings.SplitN(path, "/", 2)
+		if len(parts) != 2 {
+			return nil, fmt.Errorf("invalid S3 path '%s'", path)
+		}
+		bucket = parts[0]
+		filePath = parts[1]
+	} else {
+		fragments := strings.Split(path, "/")
+		if len(fragments) < 2 {
+			return nil, newClientError(errors.New("invalid path"))
+		}
+		bucket = fragments[0]
+		filePath = strings.Join(fragments[1:], "/")
 	}
-	bucket := fragments[0]
 
 	s3Client, err := w.getS3Client(bucket)
 	if err != nil {
@@ -176,7 +243,7 @@ func (w *Worker) fetchFile(ctx context.Context, path string) (_ []byte, err erro
 
 	output, err := s3Client.GetObjectWithContext(ctx, &s3.GetObjectInput{
 		Bucket: &bucket,
-		Key:    aws.String(strings.Join(fragments[1:], "/")),
+		Key:    &filePath,
 	})
 	if err != nil {
 		if awsErr, ok := err.(awserr.Error); ok && (awsErr.Code() == s3.ErrCodeNoSuchKey) {
@@ -261,4 +328,165 @@ func (w *Worker) getBucketS3Client(bucket string) (s3iface.S3API, error) {
 	client = s3.New(sess, &aws.Config{HTTPClient: w.HTTPClient})
 	w.s3Clients[region] = client
 	return client, nil
+}
+
+func (w *Worker) extractToken(endpoint string) (string, error) {
+	u, err := url.Parse(endpoint)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse the endpoint: %w", err)
+	}
+
+	token := u.Query().Get("token")
+	if token == "" {
+		return "", errors.New("token not found")
+	}
+
+	return token, nil
+}
+
+// fetchAnnotations is used to get the annotations based on a token and preprocess them. The second return parameter is
+// a cleanup function that always need to be executed once the information is no longer needed. The cleanup function is
+// only available in case there is no errors.
+func (w *Worker) fetchAnnotations(ctx context.Context, token string) ([]any, func(), error) {
+	annotations, err := w.AnnotationStorage.FetchAnnotation(ctx, token)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to fetch the annotations: %w", err)
+	}
+
+	var temporaryAnnotationFilesMutex sync.Mutex
+	temporaryAnnotationFiles := make([]string, 0)
+	g, gctx := errgroup.WithContext(ctx)
+	for i, annotation := range annotations {
+		//nolint:gocritic
+		switch v := annotation.(type) {
+		case domain.AnnotationImage:
+			g.Go(func() error {
+				// Fetch the file from the internet.
+				payload, err := w.fetchFile(gctx, v.ImageLocation)
+				if err != nil {
+					return fmt.Errorf("failed to fetch the image: %w", err)
+				}
+
+				// Once we have the image in memory it needs to be dumped into a file because this is how the C layer at lazypdf
+				// can consume it.
+				tmpFile, err := os.CreateTemp("", uuid.New().String())
+				if err != nil {
+					return fmt.Errorf("failed to create a temporary file: %w", err)
+				}
+				defer tmpFile.Close()
+
+				// Save the temporary file on an array to cleanup later.
+				temporaryAnnotationFilesMutex.Lock()
+				temporaryAnnotationFiles = append(temporaryAnnotationFiles, tmpFile.Name())
+				temporaryAnnotationFilesMutex.Unlock()
+
+				// Get the payload from S3 and send it to the temporary file.
+				if _, err := tmpFile.Write(payload); err != nil {
+					return fmt.Errorf("failed to write to the temporary file: %w", err)
+				}
+
+				// Update the image location to the disk copy.
+				v.ImageLocation = tmpFile.Name()
+				annotations[i] = v
+				return nil
+			})
+		}
+	}
+
+	cleanup := func() {
+		for _, entry := range temporaryAnnotationFiles {
+			go func() {
+				os.Remove(entry)
+			}()
+		}
+	}
+
+	if err := g.Wait(); err != nil {
+		cleanup()
+		return nil, nil, fmt.Errorf("failed to preprocess the annotations: %w", err)
+	}
+
+	return annotations, cleanup, nil
+}
+
+func (w *Worker) processAnnotations(payload io.Reader, annotations []any) (string, func(), error) {
+	ph := lazypdf.PdfHandler{}
+
+	doc, err := ph.OpenPDF(payload)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to open the PDF: %w", err)
+	}
+
+	for _, annotation := range annotations {
+		var err error
+		switch v := annotation.(type) {
+		case domain.AnnotationCheckbox:
+			params := lazypdf.CheckboxParams{
+				Value: v.Value,
+				Page:  v.Page,
+				Location: lazypdf.Location{
+					X: v.Location.X,
+					Y: v.Location.Y,
+				},
+				Size: lazypdf.Size{
+					Width:  v.Size.Width,
+					Height: v.Size.Height,
+				},
+			}
+			err = ph.AddCheckboxToPage(doc, params)
+		case domain.AnnotationImage:
+			params := lazypdf.ImageParams{
+				Page: v.Page,
+				Location: lazypdf.Location{
+					X: v.Location.X,
+					Y: v.Location.Y,
+				},
+				Size: lazypdf.Size{
+					Width:  v.Size.Width,
+					Height: v.Size.Height,
+				},
+				ImagePath: v.ImageLocation,
+			}
+			err = ph.AddImageToPage(doc, params)
+		case domain.AnnotationText:
+			params := lazypdf.TextParams{
+				Value: v.Value,
+				Page:  v.Page,
+				Location: lazypdf.Location{
+					X: v.Location.X,
+					Y: v.Location.Y,
+				},
+				Font: struct {
+					Family string
+					Size   float64
+				}{
+					Family: v.Font.Family,
+					Size:   v.Font.Size,
+				},
+			}
+			err = ph.AddTextToPage(doc, params)
+		default:
+			return "", nil, errors.New("annotation type not supported")
+		}
+		if err != nil {
+			return "", nil, fmt.Errorf("failed to add an annotation to the PDF: %w", err)
+		}
+	}
+
+	tmpFile, err := os.CreateTemp("", uuid.New().String())
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to create a temporary file: %w", err)
+	}
+	defer tmpFile.Close()
+
+	cleanup := func() {
+		os.Remove(tmpFile.Name())
+	}
+
+	if err := ph.SavePDF(doc, tmpFile.Name()); err != nil {
+		cleanup()
+		return "", nil, fmt.Errorf("failed to save the PDF: %w", err)
+	}
+
+	return tmpFile.Name(), cleanup, nil
 }
