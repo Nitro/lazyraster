@@ -12,6 +12,7 @@ import (
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 	"gopkg.in/DataDog/dd-trace-go.v1/profiler"
 
+	"github.com/nitro/lazyraster/v2/internal/repository"
 	"github.com/nitro/lazyraster/v2/internal/service"
 	"github.com/nitro/lazyraster/v2/internal/transport"
 )
@@ -23,6 +24,10 @@ type Client struct {
 	URLSigningSecret    string
 	EnableDatadog       bool
 	StorageBucketRegion map[string]string
+	RedisURL            string
+	RedisUsername       string
+	RedisPassword       string
+	redisDisabled       bool
 
 	server        transport.Server
 	serviceWorker service.Worker
@@ -73,6 +78,14 @@ func (c *Client) Init() (err error) {
 				profiler.Stop()
 			}
 		}()
+	}
+
+	if !c.redisDisabled {
+		redisClient, err := repository.NewRedisClient(c.RedisURL, c.RedisUsername, c.RedisPassword)
+		if err != nil {
+			return fmt.Errorf("failed to create a redis client: %w", err)
+		}
+		c.serviceWorker.AnnotationStorage = redisClient
 	}
 
 	c.serviceWorker.URLSigningSecret = c.URLSigningSecret
