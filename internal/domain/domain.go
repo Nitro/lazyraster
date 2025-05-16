@@ -1,13 +1,18 @@
 package domain
 
 type AnnotationLocation struct {
-	X int `json:"x"`
-	Y int `json:"y"`
+	X float64 `json:"x"`
+	Y float64 `json:"y"`
 }
 
 type AnnotationSize struct {
-	Height int `json:"height"`
-	Width  int `json:"width"`
+	Height float64 `json:"height"`
+	Width  float64 `json:"width"`
+}
+
+type AnnotationTextFont struct {
+	Family string  `json:"family"`
+	Size   float64 `json:"size"`
 }
 
 type AnnotationImage struct {
@@ -21,10 +26,7 @@ type AnnotationText struct {
 	Value    string             `json:"value"`
 	Page     int                `json:"page"`
 	Location AnnotationLocation `json:"location"`
-	Font     struct {
-		Family string `json:"family"`
-		Size   int    `json:"size"`
-	} `json:"font"`
+	Font     AnnotationTextFont `json:"font"`
 }
 
 type AnnotationCheckbox struct {

@@ -16,6 +16,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3iface"
+	"github.com/nitro/lazyraster/v2/internal/domain"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -30,14 +31,15 @@ func TestWorkerProcess(t *testing.T) {
 	validToken := urlsign.GenerateToken(urlSecret, 8*time.Hour, time.Now().Add(time.Hour), "documents")
 
 	tests := []struct {
-		message       string
-		url           string
-		path          string
-		page          int
-		width         int
-		scale         float32
-		s3Client      func(*testing.T) *mockS3
-		expectedError string
+		message           string
+		url               string
+		path              string
+		page              int
+		width             int
+		scale             float32
+		s3Client          func(*testing.T) *mockS3
+		expectedError     string
+		annotationStorage func(t *testing.T) *mockWorkerAnnotationStorage
 	}{
 		{
 			message:       "have an invalid page #1",
@@ -161,6 +163,54 @@ func TestWorkerProcess(t *testing.T) {
 				return &client
 			},
 		},
+		{
+			message: "process and return a page with annotations",
+			page:    1,
+			url:     fmt.Sprintf("documents?token=%s", validToken),
+			path:    "bucket-1/file.pdf",
+			annotationStorage: func(t *testing.T) *mockWorkerAnnotationStorage {
+				var client mockWorkerAnnotationStorage
+				client.On("FetchAnnotation", mock.Anything, mock.Anything).Return([]any{
+					domain.AnnotationCheckbox{
+						Value: true,
+						Page:  0,
+						Location: domain.AnnotationLocation{
+							X: 0.5,
+							Y: 0.5,
+						},
+						Size: domain.AnnotationSize{
+							Height: 0.1,
+							Width:  0.1,
+						},
+					},
+					domain.AnnotationText{
+						Value: "hey annotation from lazyraster!",
+						Page:  0,
+						Location: domain.AnnotationLocation{
+							X: 0.4,
+							Y: 0.4,
+						},
+						Font: domain.AnnotationTextFont{
+							Family: "Courier",
+							Size:   12,
+						},
+					},
+				}, nil)
+				return &client
+			},
+			s3Client: func(t *testing.T) *mockS3 {
+				var client mockS3
+				input := s3.GetObjectInput{
+					Bucket: aws.String("bucket-1"),
+					Key:    aws.String("file.pdf"),
+				}
+				payload, err := os.ReadFile("testdata/sample.pdf")
+				require.NoError(t, err)
+				output := s3.GetObjectOutput{Body: io.NopCloser(bytes.NewBuffer(payload))}
+				client.On("GetObjectWithContext", mock.Anything, &input).Return(&output, nil)
+				return &client
+			},
+		},
 	}
 	for _, format := range []string{"png", "html"} {
 		for _, tt := range tests {
@@ -186,7 +236,15 @@ func TestWorkerProcess(t *testing.T) {
 					StorageBucketRegion: map[string]string{"eu-central-1": "bucket-1"},
 					getS3Client:         getS3Client,
 				}
+				if tt.annotationStorage == nil {
+					var client mockWorkerAnnotationStorage
+					client.On("FetchAnnotation", mock.Anything, mock.Anything).Return([]any{}, nil)
+					w.AnnotationStorage = &client
+				} else {
+					w.AnnotationStorage = tt.annotationStorage(t)
+				}
 				require.NoError(t, w.Init())
+
 				err := w.Process(
 					context.Background(), tt.url, tt.path, tt.page, tt.width, tt.scale, 72, bytes.NewBuffer([]byte{}), format,
 				)
@@ -213,4 +271,13 @@ func (m *mockS3) GetObjectWithContext(
 
 func traceExtractor(context.Context, zerolog.Logger) (zerolog.Logger, error) {
 	return zerolog.Nop(), nil
+}
+
+type mockWorkerAnnotationStorage struct {
+	mock.Mock
+}
+
+func (m *mockWorkerAnnotationStorage) FetchAnnotation(ctx context.Context, token string) ([]any, error) {
+	args := m.Called(ctx, token)
+	return args.Get(0).([]any), args.Error(1)
 }
