@@ -18,7 +18,9 @@ type RedisClient struct {
 
 func (rc RedisClient) FetchAnnotation(ctx context.Context, key string) ([]any, error) {
 	result, err := rc.baseClient.Get(ctx, key).Result()
-	if err != nil {
+	if err == redis.Nil {
+		return nil, nil
+	} else if err != nil {
 		return nil, fmt.Errorf("failed to get the key '%s': %w", key, err)
 	}
 
