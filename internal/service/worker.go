@@ -416,6 +416,11 @@ func (w *Worker) processAnnotations(payload io.Reader, annotations []any) (strin
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to open the PDF: %w", err)
 	}
+	defer func() {
+		if err := ph.ClosePDF(doc); err != nil {
+			w.Logger.Err(err).Msg("Failed to close the PDF")
+		}
+	}()
 
 	for _, annotation := range annotations {
 		var err error
