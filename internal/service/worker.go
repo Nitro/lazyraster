@@ -471,7 +471,7 @@ func (w *Worker) processAnnotations(payload io.Reader, annotations []any) (strin
 			}
 			err = ph.AddTextToPage(doc, params)
 		default:
-			return "", nil, errors.New("annotation type not supported")
+			return "", nil, fmt.Errorf("annotation type '%T' not supported", annotation)
 		}
 		if err != nil {
 			return "", nil, fmt.Errorf("failed to add an annotation to the PDF: %w", err)
