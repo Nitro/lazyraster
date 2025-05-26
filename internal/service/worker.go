@@ -460,7 +460,7 @@ func (w *Worker) processAnnotations(payload io.Reader, annotations []any) (strin
 		case domain.AnnotationCheckbox:
 			params := lazypdf.CheckboxParams{
 				Value: v.Value,
-				Page:  v.Page,
+				Page:  v.Page - 1,
 				Location: lazypdf.Location{
 					X: v.Location.X,
 					Y: v.Location.Y,
@@ -473,7 +473,7 @@ func (w *Worker) processAnnotations(payload io.Reader, annotations []any) (strin
 			err = ph.AddCheckboxToPage(doc, params)
 		case domain.AnnotationImage:
 			params := lazypdf.ImageParams{
-				Page: v.Page,
+				Page: v.Page - 1,
 				Location: lazypdf.Location{
 					X: v.Location.X,
 					Y: v.Location.Y,
@@ -488,7 +488,7 @@ func (w *Worker) processAnnotations(payload io.Reader, annotations []any) (strin
 		case domain.AnnotationText:
 			params := lazypdf.TextParams{
 				Value: v.Value,
-				Page:  v.Page,
+				Page:  v.Page - 1,
 				Location: lazypdf.Location{
 					X: v.Location.X,
 					Y: v.Location.Y,
