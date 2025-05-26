@@ -219,7 +219,8 @@ func (w *Worker) fetchFile(ctx context.Context, path string) (_ []byte, err erro
 	}
 
 	var bucket, filePath string
-	if strings.HasPrefix(path, "s3://") {
+	switch {
+	case strings.HasPrefix(path, "s3://"):
 		path = strings.TrimPrefix(path, "s3://")
 		parts := strings.SplitN(path, "/", 2)
 		if len(parts) != 2 {
@@ -227,7 +228,9 @@ func (w *Worker) fetchFile(ctx context.Context, path string) (_ []byte, err erro
 		}
 		bucket = parts[0]
 		filePath = parts[1]
-	} else {
+	case strings.HasPrefix(path, "https://") || strings.HasPrefix(path, "http://"):
+		return w.fetchFileFromInternet(ctx, path)
+	default:
 		fragments := strings.Split(path, "/")
 		if len(fragments) < 2 {
 			return nil, newClientError(errors.New("invalid path"))
@@ -284,6 +287,35 @@ func (w *Worker) fetchFileFromDropbox(ctx context.Context, path string) (_ []byt
 
 	if resp.StatusCode == http.StatusNotFound {
 		return nil, newNotFoundError(errors.New("dropbox returned 404"))
+	} else if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("invalid status code '%d'", resp.StatusCode)
+	}
+
+	payload, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("fail to read the body response: %w", err)
+	}
+
+	return payload, nil
+}
+
+func (w *Worker) fetchFileFromInternet(ctx context.Context, uri string) (_ []byte, err error) {
+	span, ctx := ddTracer.StartSpanFromContext(ctx, "Worker.fetchFileFromInternet")
+	defer func() { span.Finish(ddTracer.WithError(err)) }()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, uri, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create a HTTP request: %w", err)
+	}
+
+	resp, err := w.HTTPClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("fail to download file: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, newNotFoundError(errors.New("server returned 404"))
 	} else if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, fmt.Errorf("invalid status code '%d'", resp.StatusCode)
 	}
