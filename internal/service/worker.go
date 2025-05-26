@@ -129,7 +129,7 @@ func (w *Worker) Process(
 			return fmt.Errorf("failed to extract the token: %w", err)
 		}
 
-		annotations, annotationsCleanup, err := w.fetchAnnotations(ctx, token)
+		annotations, annotationsCleanup, err := w.fetchAnnotations(ctx, token, page)
 		if err != nil {
 			return fmt.Errorf("failed to fetch the annotations: %w", err)
 		}
@@ -144,7 +144,7 @@ func (w *Worker) Process(
 
 		var payload io.Reader
 		if len(annotations) > 0 {
-			result, resultCleanup, err := w.processAnnotations(bytes.NewBuffer(rawPayload), annotations)
+			result, resultCleanup, err := w.processAnnotations(bytes.NewBuffer(rawPayload), annotations, page)
 			if err != nil {
 				return fmt.Errorf("failed to process the annotations: %w", err)
 			}
@@ -379,7 +379,7 @@ func (w *Worker) extractToken(endpoint string) (string, error) {
 // fetchAnnotations is used to get the annotations based on a token and preprocess them. The second return parameter is
 // a cleanup function that always need to be executed once the information is no longer needed. The cleanup function is
 // only available in case there is no errors.
-func (w *Worker) fetchAnnotations(ctx context.Context, token string) ([]any, func(), error) {
+func (w *Worker) fetchAnnotations(ctx context.Context, token string, page int) ([]any, func(), error) {
 	annotations, err := w.AnnotationStorage.FetchAnnotation(ctx, token)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to fetch the annotations: %w", err)
@@ -392,6 +392,9 @@ func (w *Worker) fetchAnnotations(ctx context.Context, token string) ([]any, fun
 		//nolint:gocritic
 		switch v := annotation.(type) {
 		case domain.AnnotationImage:
+			if v.Page != page+1 {
+				continue
+			}
 			g.Go(func() error {
 				// Fetch the file from the internet.
 				payload, err := w.fetchFile(gctx, v.ImageLocation)
@@ -441,7 +444,7 @@ func (w *Worker) fetchAnnotations(ctx context.Context, token string) ([]any, fun
 	return annotations, cleanup, nil
 }
 
-func (w *Worker) processAnnotations(payload io.Reader, annotations []any) (string, func(), error) {
+func (w *Worker) processAnnotations(payload io.Reader, annotations []any, page int) (string, func(), error) {
 	ph := lazypdf.PdfHandler{}
 
 	doc, err := ph.OpenPDF(payload)
@@ -470,6 +473,9 @@ func (w *Worker) processAnnotations(payload io.Reader, annotations []any) (strin
 					Height: v.Size.Height,
 				},
 			}
+			if page != params.Page {
+				continue
+			}
 			err = ph.AddCheckboxToPage(doc, params)
 		case domain.AnnotationImage:
 			params := lazypdf.ImageParams{
@@ -483,6 +489,9 @@ func (w *Worker) processAnnotations(payload io.Reader, annotations []any) (strin
 					Height: v.Size.Height,
 				},
 				ImagePath: v.ImageLocation,
+			}
+			if page != params.Page {
+				continue
 			}
 			err = ph.AddImageToPage(doc, params)
 		case domain.AnnotationText:
@@ -500,6 +509,9 @@ func (w *Worker) processAnnotations(payload io.Reader, annotations []any) (strin
 					Family: v.Font.Family,
 					Size:   v.Font.Size,
 				},
+			}
+			if page != params.Page {
+				continue
 			}
 			err = ph.AddTextToPage(doc, params)
 		default:
