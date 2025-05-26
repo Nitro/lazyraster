@@ -65,21 +65,28 @@ func (RedisClient) parseAnnotations(input string) ([]any, error) {
 		if err := json.Unmarshal(rawEntry, &e); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal message: %w", err)
 		}
-		var value any
 		switch e.Type {
 		case "checkbox":
-			value = domain.AnnotationCheckbox{}
+			value := domain.AnnotationCheckbox{}
+			if err := json.Unmarshal(rawEntry, &value); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal message: %w", err)
+			}
+			result = append(result, value)
 		case "image":
-			value = domain.AnnotationImage{}
+			value := domain.AnnotationImage{}
+			if err := json.Unmarshal(rawEntry, &value); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal message: %w", err)
+			}
+			result = append(result, value)
 		case "text":
-			value = domain.AnnotationText{}
+			value := domain.AnnotationText{}
+			if err := json.Unmarshal(rawEntry, &value); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal message: %w", err)
+			}
+			result = append(result, value)
 		default:
 			return nil, fmt.Errorf("unknow annotation type '%s'", e.Type)
 		}
-		if err := json.Unmarshal(rawEntry, &value); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal message: %w", err)
-		}
-		result = append(result, value)
 	}
 
 	return result, nil
