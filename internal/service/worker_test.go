@@ -194,6 +194,10 @@ func TestWorkerProcess(t *testing.T) {
 							Family: "Courier",
 							Size:   12,
 						},
+						Size: domain.AnnotationSize{
+							Height: 0.1,
+							Width:  0.1,
+						},
 					},
 				}, nil)
 				return &client
