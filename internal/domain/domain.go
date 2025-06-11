@@ -27,6 +27,7 @@ type AnnotationText struct {
 	Page     int                `json:"page"`
 	Location AnnotationLocation `json:"location"`
 	Font     AnnotationTextFont `json:"font"`
+	Size     AnnotationSize     `json:"size"`
 }
 
 type AnnotationCheckbox struct {

@@ -509,6 +509,10 @@ func (w *Worker) processAnnotations(payload io.Reader, annotations []any, page i
 					Family: v.Font.Family,
 					Size:   v.Font.Size,
 				},
+				Size: lazypdf.Size{
+					Width:  v.Size.Width,
+					Height: v.Size.Height,
+				},
 			}
 			if page != params.Page {
 				continue
