@@ -40,4 +40,4 @@ jobs:
         env:
           SNYK_TOKEN: ${{ secrets.sn_x_pub }}
           SNYK_API: https://app.eu.snyk.io/api
-        run: ${{ matrix.cmd }} --org=nitro-x
+        run: ${{ matrix.cmd }} --org=wapadi
