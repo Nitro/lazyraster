@@ -444,7 +444,9 @@ func (w *Worker) fetchAnnotations(ctx context.Context, token string, page int) (
 	return annotations, cleanup, nil
 }
 
-func (w *Worker) processAnnotations(ctx context.Context, payload io.Reader, annotations []any, page int) (string, func(), error) {
+func (w *Worker) processAnnotations(
+	ctx context.Context, payload io.Reader, annotations []any, page int,
+) (string, func(), error) {
 	ph := lazypdf.PdfHandler{}
 
 	doc, err := ph.OpenPDF(payload)
