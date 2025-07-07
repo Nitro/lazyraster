@@ -144,7 +144,7 @@ func (w *Worker) Process(
 
 		var payload io.Reader
 		if len(annotations) > 0 {
-			result, resultCleanup, err := w.processAnnotations(bytes.NewBuffer(rawPayload), annotations, page)
+			result, resultCleanup, err := w.processAnnotations(ctx, bytes.NewBuffer(rawPayload), annotations, page)
 			if err != nil {
 				return fmt.Errorf("failed to process the annotations: %w", err)
 			}
@@ -444,7 +444,7 @@ func (w *Worker) fetchAnnotations(ctx context.Context, token string, page int) (
 	return annotations, cleanup, nil
 }
 
-func (w *Worker) processAnnotations(payload io.Reader, annotations []any, page int) (string, func(), error) {
+func (w *Worker) processAnnotations(ctx context.Context, payload io.Reader, annotations []any, page int) (string, func(), error) {
 	ph := lazypdf.PdfHandler{}
 
 	doc, err := ph.OpenPDF(payload)
@@ -456,6 +456,12 @@ func (w *Worker) processAnnotations(payload io.Reader, annotations []any, page i
 			w.Logger.Err(err).Msg("Failed to close the PDF")
 		}
 	}()
+
+	logger, err := w.TraceExtractor(ctx, w.Logger)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to get a logger with datadog link: %w", err)
+	}
+	logger.Debug().Any("annotations", annotations).Msg("Adding annotations to the PDF")
 
 	for _, annotation := range annotations {
 		var err error
