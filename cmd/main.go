@@ -17,7 +17,7 @@ import (
 
 func main() {
 	var (
-		logger                 = zerolog.New(os.Stdout).With().Timestamp().Caller().Logger().Level(zerolog.InfoLevel)
+		logger                 = configureLogger()
 		urlSigningSecret       = os.Getenv("URL_SIGNING_SECRET")
 		enableDatadog          = os.Getenv("ENABLE_DATADOG")
 		rawStorageBucketRegion = os.Getenv("STORAGE_BUCKET_REGION")
@@ -97,4 +97,22 @@ func parseStorageBucketRegion(payload string) (map[string]string, error) {
 		return nil, fmt.Errorf("fail to parse the storage bucket region")
 	}
 	return result, nil
+}
+
+func configureLogger() zerolog.Logger {
+	var logLevel zerolog.Level
+	switch os.Getenv("LOG_LEVEL") {
+	case "debug":
+		logLevel = zerolog.DebugLevel
+	case "info":
+		logLevel = zerolog.InfoLevel
+	case "warn":
+		logLevel = zerolog.WarnLevel
+	case "error":
+		logLevel = zerolog.ErrorLevel
+	default:
+		logLevel = zerolog.InfoLevel
+	}
+
+	return zerolog.New(os.Stdout).With().Timestamp().Caller().Logger().Level(logLevel)
 }
