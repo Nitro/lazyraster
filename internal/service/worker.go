@@ -517,7 +517,7 @@ func (w *Worker) processAnnotations(payload io.Reader, annotations []any, page i
 			if page != params.Page {
 				continue
 			}
-			err = ph.AddTextToPage(doc, params)
+			err = ph.AddTextBoxToPage(doc, params)
 		default:
 			return "", nil, fmt.Errorf("annotation type '%T' not supported", annotation)
 		}
