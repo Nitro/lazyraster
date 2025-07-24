@@ -144,7 +144,7 @@ func (w *Worker) Process(
 
 		var payload io.Reader
 		if len(annotations) > 0 {
-			result, resultCleanup, err := w.processAnnotations(ctx, bytes.NewBuffer(rawPayload), annotations, page)
+			result, resultCleanup, err := w.processAnnotations(bytes.NewBuffer(rawPayload), annotations, page)
 			if err != nil {
 				return fmt.Errorf("failed to process the annotations: %w", err)
 			}
@@ -379,11 +379,11 @@ func (w *Worker) extractToken(endpoint string) (string, error) {
 // fetchAnnotations is used to get the annotations based on a token and preprocess them. The second return parameter is
 // a cleanup function that always need to be executed once the information is no longer needed. The cleanup function is
 // only available in case there is no errors.
-func (w *Worker) fetchAnnotations(ctx context.Context, token string, page int) ([]any, func(), error) {
+func (w *Worker) fetchAnnotations(ctx context.Context, token string, page int) (annotations []any, cleanup func(), err error) {
 	span, ctx := ddTracer.StartSpanFromContext(ctx, "Worker.fetchAnnotations")
 	defer func() { span.Finish(ddTracer.WithError(err)) }()
 
-	annotations, err := w.AnnotationStorage.FetchAnnotation(ctx, token)
+	annotations, err = w.AnnotationStorage.FetchAnnotation(ctx, token)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to fetch the annotations: %w", err)
 	}
@@ -431,7 +431,7 @@ func (w *Worker) fetchAnnotations(ctx context.Context, token string, page int) (
 		}
 	}
 
-	cleanup := func() {
+	cleanup = func() {
 		for _, entry := range temporaryAnnotationFiles {
 			go func() {
 				os.Remove(entry)
@@ -447,10 +447,8 @@ func (w *Worker) fetchAnnotations(ctx context.Context, token string, page int) (
 	return annotations, cleanup, nil
 }
 
-func (w *Worker) processAnnotations(
-	ctx context.Context, payload io.Reader, annotations []any, page int,
-) (string, func(), error) {
-	span, ctx := ddTracer.StartSpanFromContext(ctx, "Worker.processAnnotations")
+func (w *Worker) processAnnotations(payload io.Reader, annotations []any, page int) (filePath string, cleanup func(), err error) {
+	span, ctx := ddTracer.StartSpanFromContext(context.Background(), "Worker.processAnnotations")
 	defer func() { span.Finish(ddTracer.WithError(err)) }()
 
 	ph := lazypdf.PdfHandler{}
@@ -466,12 +464,6 @@ func (w *Worker) processAnnotations(
 			w.Logger.Err(err).Msg("Failed to close the PDF")
 		}
 	}()
-
-	logger, err := w.TraceExtractor(ctx, w.Logger)
-	if err != nil {
-		return "", nil, fmt.Errorf("failed to get a logger with datadog link: %w", err)
-	}
-	logger.Debug().Any("annotations", annotations).Msg("Adding annotations to the PDF")
 
 	for _, annotation := range annotations {
 		var err error
@@ -556,7 +548,7 @@ func (w *Worker) processAnnotations(
 	}
 	defer tmpFile.Close()
 
-	cleanup := func() {
+	cleanup = func() {
 		os.Remove(tmpFile.Name())
 	}
 
