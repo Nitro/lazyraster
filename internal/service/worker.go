@@ -144,7 +144,7 @@ func (w *Worker) Process(
 
 		var payload io.Reader
 		if len(annotations) > 0 {
-			result, resultCleanup, err := w.processAnnotations(bytes.NewBuffer(rawPayload), annotations, page)
+			result, resultCleanup, err := w.processAnnotations(ctx, bytes.NewBuffer(rawPayload), annotations, page)
 			if err != nil {
 				return fmt.Errorf("failed to process the annotations: %w", err)
 			}
@@ -450,9 +450,12 @@ func (w *Worker) fetchAnnotations(
 }
 
 func (w *Worker) processAnnotations(
-	payload io.Reader, annotations []any, page int,
+	ctx context.Context, payload io.Reader, annotations []any, page int,
 ) (filePath string, cleanup func(), err error) {
-	span, ctx := ddTracer.StartSpanFromContext(context.Background(), "Worker.processAnnotations")
+	span, ctx := ddTracer.StartSpanFromContext(ctx, "Worker.processAnnotationsTest")
+	span.Finish(ddTracer.WithError(err))
+
+	span, ctx = ddTracer.StartSpanFromContext(ctx, "Worker.processAnnotations")
 	defer func() { span.Finish(ddTracer.WithError(err)) }()
 
 	ph := lazypdf.PdfHandler{}
