@@ -379,7 +379,9 @@ func (w *Worker) extractToken(endpoint string) (string, error) {
 // fetchAnnotations is used to get the annotations based on a token and preprocess them. The second return parameter is
 // a cleanup function that always need to be executed once the information is no longer needed. The cleanup function is
 // only available in case there is no errors.
-func (w *Worker) fetchAnnotations(ctx context.Context, token string, page int) (annotations []any, cleanup func(), err error) {
+func (w *Worker) fetchAnnotations(
+	ctx context.Context, token string, page int,
+) (annotations []any, cleanup func(), err error) {
 	span, ctx := ddTracer.StartSpanFromContext(ctx, "Worker.fetchAnnotations")
 	defer func() { span.Finish(ddTracer.WithError(err)) }()
 
@@ -447,7 +449,9 @@ func (w *Worker) fetchAnnotations(ctx context.Context, token string, page int) (
 	return annotations, cleanup, nil
 }
 
-func (w *Worker) processAnnotations(payload io.Reader, annotations []any, page int) (filePath string, cleanup func(), err error) {
+func (w *Worker) processAnnotations(
+	payload io.Reader, annotations []any, page int,
+) (filePath string, cleanup func(), err error) {
 	span, ctx := ddTracer.StartSpanFromContext(context.Background(), "Worker.processAnnotations")
 	defer func() { span.Finish(ddTracer.WithError(err)) }()
 
