@@ -380,6 +380,9 @@ func (w *Worker) extractToken(endpoint string) (string, error) {
 // a cleanup function that always need to be executed once the information is no longer needed. The cleanup function is
 // only available in case there is no errors.
 func (w *Worker) fetchAnnotations(ctx context.Context, token string, page int) ([]any, func(), error) {
+	span, ctx := ddTracer.StartSpanFromContext(ctx, "Worker.fetchAnnotations")
+	defer func() { span.Finish(ddTracer.WithError(err)) }()
+
 	annotations, err := w.AnnotationStorage.FetchAnnotation(ctx, token)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to fetch the annotations: %w", err)
@@ -447,9 +450,14 @@ func (w *Worker) fetchAnnotations(ctx context.Context, token string, page int) (
 func (w *Worker) processAnnotations(
 	ctx context.Context, payload io.Reader, annotations []any, page int,
 ) (string, func(), error) {
+	span, ctx := ddTracer.StartSpanFromContext(ctx, "Worker.processAnnotations")
+	defer func() { span.Finish(ddTracer.WithError(err)) }()
+
 	ph := lazypdf.PdfHandler{}
 
+	openSpan, _ := ddTracer.StartSpanFromContext(ctx, "PdfHandler.OpenPDF")
 	doc, err := ph.OpenPDF(payload)
+	openSpan.Finish(ddTracer.WithError(err))
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to open the PDF: %w", err)
 	}
@@ -467,8 +475,10 @@ func (w *Worker) processAnnotations(
 
 	for _, annotation := range annotations {
 		var err error
+		var annSpan ddtrace.Span
 		switch v := annotation.(type) {
 		case domain.AnnotationCheckbox:
+			annSpan, _ = ddTracer.StartSpanFromContext(ctx, "PdfHandler.AddCheckboxToPage")
 			params := lazypdf.CheckboxParams{
 				Value: v.Value,
 				Page:  v.Page - 1,
@@ -482,10 +492,12 @@ func (w *Worker) processAnnotations(
 				},
 			}
 			if page != params.Page {
+				annSpan.Finish()
 				continue
 			}
 			err = ph.AddCheckboxToPage(doc, params)
 		case domain.AnnotationImage:
+			annSpan, _ = ddTracer.StartSpanFromContext(ctx, "PdfHandler.AddImageToPage")
 			params := lazypdf.ImageParams{
 				Page: v.Page - 1,
 				Location: lazypdf.Location{
@@ -499,10 +511,12 @@ func (w *Worker) processAnnotations(
 				ImagePath: v.ImageLocation,
 			}
 			if page != params.Page {
+				annSpan.Finish()
 				continue
 			}
 			err = ph.AddImageToPage(doc, params)
 		case domain.AnnotationText:
+			annSpan, _ = ddTracer.StartSpanFromContext(ctx, "PdfHandler.AddTextBoxToPage")
 			params := lazypdf.TextParams{
 				Value: v.Value,
 				Page:  v.Page - 1,
@@ -523,12 +537,14 @@ func (w *Worker) processAnnotations(
 				},
 			}
 			if page != params.Page {
+				annSpan.Finish()
 				continue
 			}
 			err = ph.AddTextBoxToPage(doc, params)
 		default:
 			return "", nil, fmt.Errorf("annotation type '%T' not supported", annotation)
 		}
+		annSpan.Finish(ddTracer.WithError(err))
 		if err != nil {
 			return "", nil, fmt.Errorf("failed to add an annotation to the PDF: %w", err)
 		}
@@ -544,7 +560,10 @@ func (w *Worker) processAnnotations(
 		os.Remove(tmpFile.Name())
 	}
 
-	if err := ph.SavePDF(doc, tmpFile.Name()); err != nil {
+	saveSpan, _ := ddTracer.StartSpanFromContext(ctx, "PdfHandler.SavePDF")
+	err = ph.SavePDF(doc, tmpFile.Name())
+	saveSpan.Finish(ddTracer.WithError(err))
+	if err != nil {
 		cleanup()
 		return "", nil, fmt.Errorf("failed to save the PDF: %w", err)
 	}
