@@ -379,8 +379,13 @@ func (w *Worker) extractToken(endpoint string) (string, error) {
 // fetchAnnotations is used to get the annotations based on a token and preprocess them. The second return parameter is
 // a cleanup function that always need to be executed once the information is no longer needed. The cleanup function is
 // only available in case there is no errors.
-func (w *Worker) fetchAnnotations(ctx context.Context, token string, page int) ([]any, func(), error) {
-	annotations, err := w.AnnotationStorage.FetchAnnotation(ctx, token)
+func (w *Worker) fetchAnnotations(
+	ctx context.Context, token string, page int,
+) (annotations []any, cleanup func(), err error) {
+	span, ctx := ddTracer.StartSpanFromContext(ctx, "Worker.fetchAnnotations")
+	defer func() { span.Finish(ddTracer.WithError(err)) }()
+
+	annotations, err = w.AnnotationStorage.FetchAnnotation(ctx, token)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to fetch the annotations: %w", err)
 	}
@@ -428,7 +433,7 @@ func (w *Worker) fetchAnnotations(ctx context.Context, token string, page int) (
 		}
 	}
 
-	cleanup := func() {
+	cleanup = func() {
 		for _, entry := range temporaryAnnotationFiles {
 			go func() {
 				os.Remove(entry)
@@ -446,10 +451,18 @@ func (w *Worker) fetchAnnotations(ctx context.Context, token string, page int) (
 
 func (w *Worker) processAnnotations(
 	ctx context.Context, payload io.Reader, annotations []any, page int,
-) (string, func(), error) {
+) (filePath string, cleanup func(), err error) {
+	span, ctx := ddTracer.StartSpanFromContext(ctx, "Worker.processAnnotationsTest")
+	span.Finish(ddTracer.WithError(err))
+
+	span, ctx = ddTracer.StartSpanFromContext(ctx, "Worker.processAnnotations")
+	defer func() { span.Finish(ddTracer.WithError(err)) }()
+
 	ph := lazypdf.PdfHandler{}
 
+	openSpan, _ := ddTracer.StartSpanFromContext(ctx, "PdfHandler.OpenPDF")
 	doc, err := ph.OpenPDF(payload)
+	openSpan.Finish(ddTracer.WithError(err))
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to open the PDF: %w", err)
 	}
@@ -459,14 +472,9 @@ func (w *Worker) processAnnotations(
 		}
 	}()
 
-	logger, err := w.TraceExtractor(ctx, w.Logger)
-	if err != nil {
-		return "", nil, fmt.Errorf("failed to get a logger with datadog link: %w", err)
-	}
-	logger.Debug().Any("annotations", annotations).Msg("Adding annotations to the PDF")
-
 	for _, annotation := range annotations {
 		var err error
+		var annSpan ddtrace.Span
 		switch v := annotation.(type) {
 		case domain.AnnotationCheckbox:
 			params := lazypdf.CheckboxParams{
@@ -484,7 +492,9 @@ func (w *Worker) processAnnotations(
 			if page != params.Page {
 				continue
 			}
+			annSpan, _ = ddTracer.StartSpanFromContext(ctx, "PdfHandler.AddCheckboxToPage")
 			err = ph.AddCheckboxToPage(doc, params)
+			annSpan.Finish(ddTracer.WithError(err))
 		case domain.AnnotationImage:
 			params := lazypdf.ImageParams{
 				Page: v.Page - 1,
@@ -501,7 +511,9 @@ func (w *Worker) processAnnotations(
 			if page != params.Page {
 				continue
 			}
+			annSpan, _ = ddTracer.StartSpanFromContext(ctx, "PdfHandler.AddImageToPage")
 			err = ph.AddImageToPage(doc, params)
+			annSpan.Finish(ddTracer.WithError(err))
 		case domain.AnnotationText:
 			params := lazypdf.TextParams{
 				Value: v.Value,
@@ -525,7 +537,9 @@ func (w *Worker) processAnnotations(
 			if page != params.Page {
 				continue
 			}
+			annSpan, _ = ddTracer.StartSpanFromContext(ctx, "PdfHandler.AddTextBoxToPage")
 			err = ph.AddTextBoxToPage(doc, params)
+			annSpan.Finish(ddTracer.WithError(err))
 		default:
 			return "", nil, fmt.Errorf("annotation type '%T' not supported", annotation)
 		}
@@ -540,11 +554,14 @@ func (w *Worker) processAnnotations(
 	}
 	defer tmpFile.Close()
 
-	cleanup := func() {
+	cleanup = func() {
 		os.Remove(tmpFile.Name())
 	}
 
-	if err := ph.SavePDF(doc, tmpFile.Name()); err != nil {
+	saveSpan, _ := ddTracer.StartSpanFromContext(ctx, "PdfHandler.SavePDF")
+	err = ph.SavePDF(doc, tmpFile.Name())
+	saveSpan.Finish(ddTracer.WithError(err))
+	if err != nil {
 		cleanup()
 		return "", nil, fmt.Errorf("failed to save the PDF: %w", err)
 	}
