@@ -458,7 +458,7 @@ func (w *Worker) processAnnotations(
 	span, ctx = ddTracer.StartSpanFromContext(ctx, "Worker.processAnnotations")
 	defer func() { span.Finish(ddTracer.WithError(err)) }()
 
-	ph := lazypdf.PdfHandler{}
+	ph := lazypdf.NewPdfHandler(ctx)
 
 	openSpan, _ := ddTracer.StartSpanFromContext(ctx, "PdfHandler.OpenPDF")
 	doc, err := ph.OpenPDF(payload)
