@@ -485,7 +485,13 @@ func (w *Worker) processAnnotations(
 		}
 	}()
 
+	deadline, hasDeadline := ctx.Deadline()
+
 	for _, annotation := range annotations {
+		if hasDeadline && time.Now().After(deadline) {
+			return "", nil, context.DeadlineExceeded
+		}
+
 		var err error
 		var annSpan ddtrace.Span
 		switch v := annotation.(type) {
