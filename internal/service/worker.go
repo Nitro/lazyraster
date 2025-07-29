@@ -144,7 +144,7 @@ func (w *Worker) Process(
 
 		var payload io.Reader
 		if len(annotations) > 0 {
-			result, resultCleanup, err := w.processAnnotations(ctx, bytes.NewBuffer(rawPayload), annotations, page)
+			result, resultCleanup, err := w.processAnnotations(ctx, bytes.NewBuffer(rawPayload), annotations)
 			if err != nil {
 				return fmt.Errorf("failed to process the annotations: %w", err)
 			}
@@ -385,7 +385,8 @@ func (w *Worker) fetchAnnotations(
 	span, ctx := ddTracer.StartSpanFromContext(ctx, "Worker.fetchAnnotations")
 	defer func() { span.Finish(ddTracer.WithError(err)) }()
 
-	annotations, err = w.AnnotationStorage.FetchAnnotation(ctx, token)
+	annotations = make([]any, 0)
+	originalAnnotations, err := w.AnnotationStorage.FetchAnnotation(ctx, token)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to fetch the annotations: %w", err)
 	}
@@ -393,13 +394,25 @@ func (w *Worker) fetchAnnotations(
 	var temporaryAnnotationFilesMutex sync.Mutex
 	temporaryAnnotationFiles := make([]string, 0)
 	g, gctx := errgroup.WithContext(ctx)
-	for i, annotation := range annotations {
+	for _, annotation := range originalAnnotations {
 		//nolint:gocritic
 		switch v := annotation.(type) {
+		case domain.AnnotationText:
+			if v.Page != page+1 {
+				continue
+			}
+			annotations = append(annotations, v)
+		case domain.AnnotationCheckbox:
+			if v.Page != page+1 {
+				continue
+			}
+			annotations = append(annotations, v)
 		case domain.AnnotationImage:
 			if v.Page != page+1 {
 				continue
 			}
+			imgIdx := len(annotations)
+			annotations = append(annotations, v)
 			g.Go(func() error {
 				// Fetch the file from the internet.
 				payload, err := w.fetchFile(gctx, v.ImageLocation)
@@ -427,7 +440,7 @@ func (w *Worker) fetchAnnotations(
 
 				// Update the image location to the disk copy.
 				v.ImageLocation = tmpFile.Name()
-				annotations[i] = v
+				annotations[imgIdx] = v
 				return nil
 			})
 		}
@@ -450,7 +463,7 @@ func (w *Worker) fetchAnnotations(
 }
 
 func (w *Worker) processAnnotations(
-	ctx context.Context, payload io.Reader, annotations []any, page int,
+	ctx context.Context, payload io.Reader, annotations []any,
 ) (filePath string, cleanup func(), err error) {
 	span, ctx := ddTracer.StartSpanFromContext(ctx, "Worker.processAnnotationsTest")
 	span.Finish(ddTracer.WithError(err))
@@ -489,9 +502,6 @@ func (w *Worker) processAnnotations(
 					Height: v.Size.Height,
 				},
 			}
-			if page != params.Page {
-				continue
-			}
 			annSpan, _ = ddTracer.StartSpanFromContext(ctx, "PdfHandler.AddCheckboxToPage")
 			err = ph.AddCheckboxToPage(doc, params)
 			annSpan.Finish(ddTracer.WithError(err))
@@ -507,9 +517,6 @@ func (w *Worker) processAnnotations(
 					Height: v.Size.Height,
 				},
 				ImagePath: v.ImageLocation,
-			}
-			if page != params.Page {
-				continue
 			}
 			annSpan, _ = ddTracer.StartSpanFromContext(ctx, "PdfHandler.AddImageToPage")
 			err = ph.AddImageToPage(doc, params)
@@ -533,9 +540,6 @@ func (w *Worker) processAnnotations(
 					Width:  v.Size.Width,
 					Height: v.Size.Height,
 				},
-			}
-			if page != params.Page {
-				continue
 			}
 			annSpan, _ = ddTracer.StartSpanFromContext(ctx, "PdfHandler.AddTextBoxToPage")
 			err = ph.AddTextBoxToPage(doc, params)
