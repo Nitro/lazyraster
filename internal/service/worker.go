@@ -465,17 +465,12 @@ func (w *Worker) fetchAnnotations(
 func (w *Worker) processAnnotations(
 	ctx context.Context, payload io.Reader, annotations []any,
 ) (filePath string, cleanup func(), err error) {
-	span, ctx := ddTracer.StartSpanFromContext(ctx, "Worker.processAnnotationsTest")
-	span.Finish(ddTracer.WithError(err))
-
 	span, ctx = ddTracer.StartSpanFromContext(ctx, "Worker.processAnnotations")
 	defer func() { span.Finish(ddTracer.WithError(err)) }()
 
 	ph := lazypdf.NewPdfHandler(ctx, nil)
 
-	openSpan, _ := ddTracer.StartSpanFromContext(ctx, "PdfHandler.OpenPDF")
 	doc, err := ph.OpenPDF(payload)
-	openSpan.Finish(ddTracer.WithError(err))
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to open the PDF: %w", err)
 	}
@@ -502,9 +497,7 @@ func (w *Worker) processAnnotations(
 					Height: v.Size.Height,
 				},
 			}
-			annSpan, _ = ddTracer.StartSpanFromContext(ctx, "PdfHandler.AddCheckboxToPage")
 			err = ph.AddCheckboxToPage(doc, params)
-			annSpan.Finish(ddTracer.WithError(err))
 		case domain.AnnotationImage:
 			params := lazypdf.ImageParams{
 				Page: v.Page - 1,
@@ -518,9 +511,7 @@ func (w *Worker) processAnnotations(
 				},
 				ImagePath: v.ImageLocation,
 			}
-			annSpan, _ = ddTracer.StartSpanFromContext(ctx, "PdfHandler.AddImageToPage")
 			err = ph.AddImageToPage(doc, params)
-			annSpan.Finish(ddTracer.WithError(err))
 		case domain.AnnotationText:
 			params := lazypdf.TextParams{
 				Value: v.Value,
@@ -541,9 +532,7 @@ func (w *Worker) processAnnotations(
 					Height: v.Size.Height,
 				},
 			}
-			annSpan, _ = ddTracer.StartSpanFromContext(ctx, "PdfHandler.AddTextBoxToPage")
 			err = ph.AddTextBoxToPage(doc, params)
-			annSpan.Finish(ddTracer.WithError(err))
 		default:
 			return "", nil, fmt.Errorf("annotation type '%T' not supported", annotation)
 		}
@@ -562,9 +551,7 @@ func (w *Worker) processAnnotations(
 		os.Remove(tmpFile.Name())
 	}
 
-	saveSpan, _ := ddTracer.StartSpanFromContext(ctx, "PdfHandler.SavePDF")
 	err = ph.SavePDF(doc, tmpFile.Name())
-	saveSpan.Finish(ddTracer.WithError(err))
 	if err != nil {
 		cleanup()
 		return "", nil, fmt.Errorf("failed to save the PDF: %w", err)
