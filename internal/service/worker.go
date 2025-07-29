@@ -143,7 +143,11 @@ func (w *Worker) Process(
 		}
 
 		if len(annotations) > 0 {
-			err := w.SaveToPNGWithAnnotations(ctx, uint16(page), uint16(width), scale, dpi, bytes.NewBuffer(rawPayload), storage, annotations)
+			//nolint:gosec,G115
+			err := w.SaveToPNGWithAnnotations(
+				ctx, uint16(page), uint16(width), scale, dpi,
+				bytes.NewBuffer(rawPayload), storage, annotations,
+			)
 			if err != nil {
 				return fmt.Errorf("failed to process annotations and generate PNG: %w", err)
 			}
@@ -453,7 +457,8 @@ func (w *Worker) fetchAnnotations(
 }
 
 func (w *Worker) SaveToPNGWithAnnotations(
-	ctx context.Context, page uint16, width uint16, scale float32, dpi int, payload io.Reader, storage io.Writer, annotations []any,
+	ctx context.Context, page uint16, width uint16, scale float32, dpi int,
+	payload io.Reader, storage io.Writer, annotations []any,
 ) (err error) {
 	span, ctx := ddTracer.StartSpanFromContext(ctx, "Worker.SaveToPNGWithAnnotations")
 	defer func() { span.Finish(ddTracer.WithError(err)) }()
