@@ -479,7 +479,7 @@ func (w *Worker) SaveToPNGWithAnnotations(
 
 	for _, annotation := range annotations {
 		if hasDeadline && time.Now().After(deadline) {
-			return "", nil, context.DeadlineExceeded
+			return context.DeadlineExceeded
 		}
 
 		var err error
