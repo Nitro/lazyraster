@@ -142,27 +142,17 @@ func (w *Worker) Process(
 		case rawPayload = <-chanPayload:
 		}
 
-		var payload io.Reader
 		if len(annotations) > 0 {
-			result, resultCleanup, err := w.processAnnotations(ctx, bytes.NewBuffer(rawPayload), annotations)
+			err := w.SaveToPNGWithAnnotations(ctx, uint16(page), uint16(width), scale, dpi, bytes.NewBuffer(rawPayload), storage, annotations)
 			if err != nil {
-				return fmt.Errorf("failed to process the annotations: %w", err)
+				return fmt.Errorf("failed to process annotations and generate PNG: %w", err)
 			}
-			defer resultCleanup()
-
-			p, err := os.ReadFile(result)
-			if err != nil {
-				return fmt.Errorf("failed to read the PDF file: %w", err)
-			}
-			payload = bytes.NewBuffer(p)
 		} else {
-			payload = bytes.NewBuffer(rawPayload)
-		}
-
-		//nolint:gosec,G115
-		err = lazypdf.SaveToPNG(ctx, uint16(page), uint16(width), scale, dpi, payload, storage)
-		if err != nil {
-			return fmt.Errorf("fail to extract the PNG from the PDF: %w", err)
+			//nolint:gosec,G115
+			err = lazypdf.SaveToPNG(ctx, uint16(page), uint16(width), scale, dpi, bytes.NewBuffer(rawPayload), storage)
+			if err != nil {
+				return fmt.Errorf("fail to extract the PNG from the PDF: %w", err)
+			}
 		}
 	case "html":
 		var rawPayload []byte
@@ -462,17 +452,17 @@ func (w *Worker) fetchAnnotations(
 	return annotations, cleanup, nil
 }
 
-func (w *Worker) processAnnotations(
-	ctx context.Context, payload io.Reader, annotations []any,
-) (filePath string, cleanup func(), err error) {
-	span, ctx = ddTracer.StartSpanFromContext(ctx, "Worker.processAnnotations")
+func (w *Worker) SaveToPNGWithAnnotations(
+	ctx context.Context, page uint16, width uint16, scale float32, dpi int, payload io.Reader, storage io.Writer, annotations []any,
+) (err error) {
+	span, ctx := ddTracer.StartSpanFromContext(ctx, "Worker.SaveToPNGWithAnnotations")
 	defer func() { span.Finish(ddTracer.WithError(err)) }()
 
 	ph := lazypdf.NewPdfHandler(ctx, nil)
 
 	doc, err := ph.OpenPDF(payload)
 	if err != nil {
-		return "", nil, fmt.Errorf("failed to open the PDF: %w", err)
+		return fmt.Errorf("failed to open the PDF: %w", err)
 	}
 	defer func() {
 		if err := ph.ClosePDF(doc); err != nil {
@@ -482,7 +472,6 @@ func (w *Worker) processAnnotations(
 
 	for _, annotation := range annotations {
 		var err error
-		var annSpan ddtrace.Span
 		switch v := annotation.(type) {
 		case domain.AnnotationCheckbox:
 			params := lazypdf.CheckboxParams{
@@ -534,28 +523,16 @@ func (w *Worker) processAnnotations(
 			}
 			err = ph.AddTextBoxToPage(doc, params)
 		default:
-			return "", nil, fmt.Errorf("annotation type '%T' not supported", annotation)
+			return fmt.Errorf("annotation type '%T' not supported", annotation)
 		}
 		if err != nil {
-			return "", nil, fmt.Errorf("failed to add an annotation to the PDF: %w", err)
+			return fmt.Errorf("failed to add an annotation to the PDF: %w", err)
 		}
 	}
 
-	tmpFile, err := os.CreateTemp("", uuid.New().String())
+	err = ph.SaveToPNG(doc, page, width, scale, dpi, storage)
 	if err != nil {
-		return "", nil, fmt.Errorf("failed to create a temporary file: %w", err)
+		return fmt.Errorf("failed to add an annotation to the PDF: %w", err)
 	}
-	defer tmpFile.Close()
-
-	cleanup = func() {
-		os.Remove(tmpFile.Name())
-	}
-
-	err = ph.SavePDF(doc, tmpFile.Name())
-	if err != nil {
-		cleanup()
-		return "", nil, fmt.Errorf("failed to save the PDF: %w", err)
-	}
-
-	return tmpFile.Name(), cleanup, nil
+	return nil
 }
