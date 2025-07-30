@@ -7,7 +7,7 @@ require (
 	github.com/aws/aws-sdk-go v1.55.7
 	github.com/go-chi/chi/v5 v5.2.1
 	github.com/google/uuid v1.6.0
-	github.com/nitro/lazypdf/v2 v2.0.0-20250729142805-fab11744de15
+	github.com/nitro/lazypdf/v2 v2.0.0-20250730083528-d0d03efe46d5
 	github.com/rs/zerolog v1.34.0
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/smartystreets/goconvey v1.6.4 // indirect
