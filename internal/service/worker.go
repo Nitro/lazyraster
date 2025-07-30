@@ -470,7 +470,7 @@ func (w *Worker) SaveToPNGWithAnnotations(
 		return fmt.Errorf("failed to open the PDF: %w", err)
 	}
 	defer func() {
-		if err := ph.ClosePDF(doc); err != nil {
+		if err := ph.ClosePDF(&doc); err != nil {
 			w.Logger.Err(err).Msg("Failed to close the PDF")
 		}
 	}()
@@ -497,7 +497,7 @@ func (w *Worker) SaveToPNGWithAnnotations(
 					Height: v.Size.Height,
 				},
 			}
-			err = ph.AddCheckboxToPage(doc, params)
+			err = ph.AddCheckboxToPage(&doc, params)
 		case domain.AnnotationImage:
 			params := lazypdf.ImageParams{
 				Page: v.Page - 1,
@@ -511,7 +511,7 @@ func (w *Worker) SaveToPNGWithAnnotations(
 				},
 				ImagePath: v.ImageLocation,
 			}
-			err = ph.AddImageToPage(doc, params)
+			err = ph.AddImageToPage(&doc, params)
 		case domain.AnnotationText:
 			params := lazypdf.TextParams{
 				Value: v.Value,
@@ -532,7 +532,7 @@ func (w *Worker) SaveToPNGWithAnnotations(
 					Height: v.Size.Height,
 				},
 			}
-			err = ph.AddTextBoxToPage(doc, params)
+			err = ph.AddTextBoxToPage(&doc, params)
 		default:
 			return fmt.Errorf("annotation type '%T' not supported", annotation)
 		}
@@ -541,6 +541,7 @@ func (w *Worker) SaveToPNGWithAnnotations(
 		}
 	}
 
+	//nolint:govet
 	err = ph.SaveToPNG(doc, page, width, scale, dpi, storage)
 	if err != nil {
 		return fmt.Errorf("failed to add an annotation to the PDF: %w", err)

@@ -139,8 +139,8 @@ github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd h1:TRLaZ9cD/w
 github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd/go.mod h1:6dJC0mAP4ikYIbvyc7fijjWJddQyLn8Ig3JB5CqoB9Q=
 github.com/modern-go/reflect2 v1.0.2 h1:xBagoLtFs94CBntxluKeaWgTMpvLxC4ur3nMaC9Gz0M=
 github.com/modern-go/reflect2 v1.0.2/go.mod h1:yWuevngMOJpCy52FWWMvUC8ws7m/LJsjYzDa0/r8luk=
-github.com/nitro/lazypdf/v2 v2.0.0-20250730083528-d0d03efe46d5 h1:fQrruA7yDTixFfl5vkZD50NJESDpGhccWoZB8qod74Q=
-github.com/nitro/lazypdf/v2 v2.0.0-20250730083528-d0d03efe46d5/go.mod h1:hIq0I7f/dyOQlD8RP0wFK57BCgKiFZxl9uO9jeso2y8=
+github.com/nitro/lazypdf/v2 v2.0.0-20250730104516-8a96d6c9d587 h1:EkXJpHFBoOqSrT6ezb2QWh3aNgpVCH3/myjfJJ/I94Q=
+github.com/nitro/lazypdf/v2 v2.0.0-20250730104516-8a96d6c9d587/go.mod h1:hIq0I7f/dyOQlD8RP0wFK57BCgKiFZxl9uO9jeso2y8=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/sampling v0.122.0 h1:n0nWcGanaHanlih+YRp8etj1/fYZoQFRk+7+/J85dpU=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/sampling v0.122.0/go.mod h1:MMvJIC26DIEZo5DR4Ub/WJD1aPVxKGpgJolXxTtjgLE=
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/probabilisticsamplerprocessor v0.122.0 h1:zuqwUU8P+IqQMHvMYHlTBXt8lRn1Zu2B9QNAscLP+9A=
