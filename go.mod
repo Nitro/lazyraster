@@ -5,7 +5,7 @@ go 1.23.6
 require (
 	github.com/Nitro/urlsign v0.0.0-20181015102600-5c9420004fa4
 	github.com/aws/aws-sdk-go v1.55.7
-	github.com/go-chi/chi/v5 v5.2.1
+	github.com/go-chi/chi/v5 v5.2.3
 	github.com/google/uuid v1.6.0
 	github.com/nitro/lazypdf/v2 v2.0.0-20250924133135-891e0ad5ef64
 	github.com/rs/zerolog v1.34.0
