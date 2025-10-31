@@ -351,7 +351,7 @@ func (w *Worker) getBucketS3Client(bucket string) (s3iface.S3API, error) {
 	}
 	sess = awstrace.WrapSession(sess)
 
-	client = s3.New(sess, &aws.Config{HTTPClient: w.HTTPClient})
+	client = s3.New(sess, &aws.Config{HTTPClient: w.HTTPClient, Region: &region})
 	w.s3Clients[region] = client
 	return client, nil
 }
