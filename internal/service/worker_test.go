@@ -12,10 +12,8 @@ import (
 	"time"
 
 	"github.com/Nitro/urlsign"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/request"
-	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/aws/aws-sdk-go/service/s3/s3iface"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/nitro/lazyraster/v2/internal/domain"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/mock"
@@ -123,7 +121,7 @@ func TestWorkerProcess(t *testing.T) {
 					Bucket: aws.String("bucket-1"),
 					Key:    aws.String("file.pdf"),
 				}
-				client.On("GetObjectWithContext", mock.Anything, &input).Return((*s3.GetObjectOutput)(nil), errors.New("s3 error"))
+				client.On("GetObject", mock.Anything, &input).Return((*s3.GetObjectOutput)(nil), errors.New("s3 error"))
 				return &client
 			},
 			expectedError: "fail to fetch the file: fail to get object: s3 error",
@@ -140,7 +138,7 @@ func TestWorkerProcess(t *testing.T) {
 					Key:    aws.String("file.pdf"),
 				}
 				output := s3.GetObjectOutput{Body: io.NopCloser(bytes.NewBuffer([]byte{}))}
-				client.On("GetObjectWithContext", mock.Anything, &input).Return(&output, nil)
+				client.On("GetObject", mock.Anything, &input).Return(&output, nil)
 				return &client
 			},
 			expectedError: "empty payload",
@@ -159,7 +157,7 @@ func TestWorkerProcess(t *testing.T) {
 				payload, err := os.ReadFile("testdata/sample.pdf")
 				require.NoError(t, err)
 				output := s3.GetObjectOutput{Body: io.NopCloser(bytes.NewBuffer(payload))}
-				client.On("GetObjectWithContext", mock.Anything, &input).Return(&output, nil)
+				client.On("GetObject", mock.Anything, &input).Return(&output, nil)
 				return &client
 			},
 		},
@@ -211,7 +209,7 @@ func TestWorkerProcess(t *testing.T) {
 				payload, err := os.ReadFile("testdata/sample.pdf")
 				require.NoError(t, err)
 				output := s3.GetObjectOutput{Body: io.NopCloser(bytes.NewBuffer(payload))}
-				client.On("GetObjectWithContext", mock.Anything, &input).Return(&output, nil)
+				client.On("GetObject", mock.Anything, &input).Return(&output, nil)
 				return &client
 			},
 		},
@@ -223,12 +221,12 @@ func TestWorkerProcess(t *testing.T) {
 
 				var (
 					s3Client    *mockS3
-					getS3Client func(string) (s3iface.S3API, error)
+					getS3Client func(string) (workerS3API, error)
 				)
 				if tt.s3Client != nil {
 					s3Client = tt.s3Client(t)
 					defer s3Client.AssertExpectations(t)
-					getS3Client = func(string) (s3iface.S3API, error) {
+					getS3Client = func(string) (workerS3API, error) {
 						return s3Client, nil
 					}
 				}
@@ -237,7 +235,7 @@ func TestWorkerProcess(t *testing.T) {
 					HTTPClient:          http.DefaultClient,
 					URLSigningSecret:    urlSecret,
 					TraceExtractor:      traceExtractor,
-					StorageBucketRegion: map[string]string{"eu-central-1": "bucket-1"},
+					StorageBucketRegion: map[string]string{"bucket-1": "eu-central-1"},
 					getS3Client:         getS3Client,
 				}
 				if tt.annotationStorage == nil {
@@ -262,15 +260,20 @@ func TestWorkerProcess(t *testing.T) {
 }
 
 type mockS3 struct {
-	s3iface.S3API
 	mock.Mock
 }
 
-func (m *mockS3) GetObjectWithContext(
-	ctx context.Context, input *s3.GetObjectInput, options ...request.Option,
+func (m *mockS3) GetObject(
+	ctx context.Context,
+	input *s3.GetObjectInput,
+	_ ...func(*s3.Options),
 ) (*s3.GetObjectOutput, error) {
 	args := m.Called(ctx, input)
-	return args.Get(0).(*s3.GetObjectOutput), args.Error(1)
+	var output *s3.GetObjectOutput
+	if value := args.Get(0); value != nil {
+		output = value.(*s3.GetObjectOutput)
+	}
+	return output, args.Error(1)
 }
 
 func traceExtractor(context.Context, zerolog.Logger) (zerolog.Logger, error) {

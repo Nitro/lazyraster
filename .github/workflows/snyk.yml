@@ -11,11 +11,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest]
-        target:
-          [
-            dependency-test,
-            code-test,
-          ]
+        target: [dependency-test, code-test]
         include:
           - target: dependency-test
             name: Snyk dependency scan
@@ -34,7 +30,7 @@ jobs:
       - uses: snyk/actions/setup@master
       - uses: actions/setup-go@v1
         with:
-          go-version: 1.23.6
+          go-version: 1.25.3
 
       - name: Exec ${{ matrix.target }}
         env:
