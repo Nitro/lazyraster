@@ -15,21 +15,24 @@ import (
 	"time"
 
 	"github.com/Nitro/urlsign"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/aws/aws-sdk-go/service/s3/s3iface"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/google/uuid"
 	"github.com/nitro/lazypdf/v2"
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
-	awstrace "gopkg.in/DataDog/dd-trace-go.v1/contrib/aws/aws-sdk-go/aws"
+	awsv2trace "gopkg.in/DataDog/dd-trace-go.v1/contrib/aws/aws-sdk-go-v2/aws"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace"
 	ddTracer "gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 
 	"github.com/nitro/lazyraster/v2/internal/domain"
 )
+
+type workerS3API interface {
+	GetObject(context.Context, *s3.GetObjectInput, ...func(*s3.Options)) (*s3.GetObjectOutput, error)
+}
 
 type workerAnnotationStorage interface {
 	FetchAnnotation(context.Context, string) ([]any, error)
@@ -44,8 +47,8 @@ type Worker struct {
 	StorageBucketRegion map[string]string
 	AnnotationStorage   workerAnnotationStorage
 
-	getS3Client func(string) (s3iface.S3API, error)
-	s3Clients   map[string]s3iface.S3API
+	getS3Client func(string) (workerS3API, error)
+	s3Clients   map[string]workerS3API
 	mutex       sync.Mutex
 }
 
@@ -66,7 +69,7 @@ func (w *Worker) Init() error {
 	if w.getS3Client == nil {
 		w.getS3Client = w.getBucketS3Client
 	}
-	w.s3Clients = make(map[string]s3iface.S3API)
+	w.s3Clients = make(map[string]workerS3API)
 	return nil
 }
 
@@ -238,12 +241,13 @@ func (w *Worker) fetchFile(ctx context.Context, path string) (_ []byte, err erro
 		return nil, fmt.Errorf("fail to get the s3 bucket client: %w", err)
 	}
 
-	output, err := s3Client.GetObjectWithContext(ctx, &s3.GetObjectInput{
-		Bucket: &bucket,
-		Key:    &filePath,
+	output, err := s3Client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(bucket),
+		Key:    aws.String(filePath),
 	})
 	if err != nil {
-		if awsErr, ok := err.(awserr.Error); ok && (awsErr.Code() == s3.ErrCodeNoSuchKey) {
+		var notFound *types.NoSuchKey
+		if errors.As(err, &notFound) {
 			return nil, newNotFoundError(err)
 		}
 		return nil, fmt.Errorf("fail to get object: %w", err)
@@ -331,7 +335,7 @@ func (*Worker) startSpan(ctx context.Context, operation string) (ddtrace.Span, c
 	return ddTracer.StartSpanFromContext(ctx, "internal/service/"+operation)
 }
 
-func (w *Worker) getBucketS3Client(bucket string) (s3iface.S3API, error) {
+func (w *Worker) getBucketS3Client(bucket string) (workerS3API, error) {
 	region, ok := w.StorageBucketRegion[bucket]
 	if !ok {
 		return nil, fmt.Errorf("can't find the bucket '%s' region", bucket)
@@ -345,13 +349,19 @@ func (w *Worker) getBucketS3Client(bucket string) (s3iface.S3API, error) {
 		return client, nil
 	}
 
-	sess, err := session.NewSession(&aws.Config{HTTPClient: w.HTTPClient, Region: &region})
+	cfg, err := config.LoadDefaultConfig(
+		context.Background(),
+		config.WithRegion(region),
+		config.WithHTTPClient(w.HTTPClient),
+	)
 	if err != nil {
-		return nil, fmt.Errorf("fail to start a session on region '%s': %w", region, err)
+		return nil, fmt.Errorf("fail to load configuration for region '%s': %w", region, err)
 	}
-	sess = awstrace.WrapSession(sess)
+	awsv2trace.AppendMiddleware(&cfg)
 
-	client = s3.New(sess, &aws.Config{HTTPClient: w.HTTPClient})
+	client = s3.NewFromConfig(cfg, func(o *s3.Options) {
+		o.HTTPClient = w.HTTPClient
+	})
 	w.s3Clients[region] = client
 	return client, nil
 }
