@@ -9,7 +9,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.89.1
 	github.com/go-chi/chi/v5 v5.2.3
 	github.com/google/uuid v1.6.0
-	github.com/nitro/lazypdf/v2 v2.0.0-20250924133135-891e0ad5ef64
+	github.com/nitro/lazypdf/v2 v2.0.0-20251222085501-6157acf24854
 	github.com/rs/zerolog v1.34.0
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/smartystreets/goconvey v1.6.4 // indirect
