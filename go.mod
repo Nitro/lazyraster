@@ -6,7 +6,7 @@ require (
 	github.com/Nitro/urlsign v0.0.0-20181015102600-5c9420004fa4
 	github.com/aws/aws-sdk-go-v2 v1.41.0
 	github.com/aws/aws-sdk-go-v2/config v1.32.6
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.94.0
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.95.0
 	github.com/go-chi/chi/v5 v5.2.3
 	github.com/google/uuid v1.6.0
 	github.com/nitro/lazypdf/v2 v2.0.0-20251222085501-6157acf24854
