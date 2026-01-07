@@ -49,9 +49,9 @@ func (s *Server) Start() {
 	// The HTTP server uses a static configuration. In the case that we need to change this setting in the future, we
 	// could consider moving it to a configuration file.
 	s.server = http.Server{
-		ReadTimeout:       10 * time.Second,
+		ReadTimeout:       20 * time.Second,
 		ReadHeaderTimeout: 20 * time.Second,
-		WriteTimeout:      10 * time.Second,
+		WriteTimeout:      20 * time.Second,
 		IdleTimeout:       30 * time.Second,
 		MaxHeaderBytes:    maxBodySize,
 		Addr:              ":8080",
