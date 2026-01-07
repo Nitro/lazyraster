@@ -49,9 +49,9 @@ func (s *Server) Start() {
 	// The HTTP server uses a static configuration. In the case that we need to change this setting in the future, we
 	// could consider moving it to a configuration file.
 	s.server = http.Server{
-		ReadTimeout:       10 * time.Second,
+		ReadTimeout:       20 * time.Second,
 		ReadHeaderTimeout: 20 * time.Second,
-		WriteTimeout:      10 * time.Second,
+		WriteTimeout:      20 * time.Second,
 		IdleTimeout:       30 * time.Second,
 		MaxHeaderBytes:    maxBodySize,
 		Addr:              ":8080",
@@ -76,7 +76,7 @@ func (s *Server) Stop(ctx context.Context) error {
 func (s *Server) initMiddleware() {
 	m := middleware{log: s.Logger, writer: s.writer, traceExtractor: s.TraceExtractor}
 	s.router.Use(m.recoverer)
-	s.router.Use(m.timeout(5 * time.Second))
+	s.router.Use(m.timeout(15 * time.Second))
 	s.router.Use(m.datadogTracer)
 	s.router.Use(chiMiddleware.NoCache)
 	s.router.Use(chiMiddleware.RealIP)
