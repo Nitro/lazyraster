@@ -21,7 +21,7 @@ require (
 )
 
 require (
-	github.com/redis/go-redis/v9 v9.17.2
+	github.com/redis/go-redis/v9 v9.17.3
 	golang.org/x/sync v0.19.0
 )
 
