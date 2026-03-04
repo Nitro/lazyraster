@@ -71,9 +71,6 @@ func (m middleware) logger(next http.Handler) http.Handler {
 		if token := r.URL.Query().Get("token"); token != "" {
 			requestURI = strings.ReplaceAll(requestURI, token, "[REDACTED]")
 		}
-		if strings.HasPrefix(requestURI, "/documents/dropbox/") {
-			requestURI = "/documents/dropbox/[REDACTED]"
-		}
 
 		log, err := m.traceExtractor(r.Context(), m.log)
 		if err != nil {
@@ -135,9 +132,6 @@ func (m middleware) logger(next http.Handler) http.Handler {
 func (m middleware) datadogTracer(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
-		if strings.HasPrefix(path, "/documents/dropbox/") {
-			path = "/documents/dropbox/[REDACTED]"
-		}
 
 		opts := []ddtrace.StartSpanOption{
 			tracer.SpanType(ext.SpanTypeWeb),

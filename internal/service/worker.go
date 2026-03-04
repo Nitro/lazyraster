@@ -3,7 +3,6 @@ package service
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -211,10 +210,6 @@ func (w *Worker) fetchFile(ctx context.Context, path string) (_ []byte, err erro
 	span, ctx := ddTracer.StartSpanFromContext(ctx, "Worker.fetchFile")
 	defer func() { span.Finish(ddTracer.WithError(err)) }()
 
-	if strings.HasPrefix(path, "dropbox/") {
-		return w.fetchFileFromDropbox(ctx, path)
-	}
-
 	var bucket, filePath string
 	switch {
 	case strings.HasPrefix(path, "s3://"):
@@ -259,40 +254,6 @@ func (w *Worker) fetchFile(ctx context.Context, path string) (_ []byte, err erro
 		return nil, fmt.Errorf("fail to read the reader: %w", err)
 	}
 	span.SetTag("fileSize", len(payload))
-
-	return payload, nil
-}
-
-func (w *Worker) fetchFileFromDropbox(ctx context.Context, path string) (_ []byte, err error) {
-	span, ctx := ddTracer.StartSpanFromContext(ctx, "Worker.fetchFileFromDropbox")
-	defer func() { span.Finish(ddTracer.WithError(err)) }()
-
-	fileURL, err := base64.RawURLEncoding.DecodeString(strings.TrimPrefix(path, "dropbox/"))
-	if err != nil {
-		return nil, newClientError(fmt.Errorf("fail to decode base64 path: %w", err))
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, string(fileURL), nil)
-	if err != nil {
-		return nil, fmt.Errorf("fail to create the HTTP request: %w", err)
-	}
-
-	resp, err := w.HTTPClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("fail to download file: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode == http.StatusNotFound {
-		return nil, newNotFoundError(errors.New("dropbox returned 404"))
-	} else if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("invalid status code '%d'", resp.StatusCode)
-	}
-
-	payload, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("fail to read the body response: %w", err)
-	}
 
 	return payload, nil
 }
