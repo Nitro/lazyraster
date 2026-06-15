@@ -105,9 +105,12 @@ func (w *Worker) Process(
 		return newClientError(errors.New("invalid token"))
 	}
 
-	// Fetch the file in a goroutine to allow the annotations to be processed while the payload is being fetch.
-	chanPayload := make(chan []byte)
-	chanError := make(chan error)
+	// Fetch the file in a goroutine to allow the annotations to be processed while the payload is being fetch. The
+	// channels are buffered so the goroutine can always complete its single send and exit, even when Process returns
+	// early (e.g. on a token or annotation error) before reaching the select that drains them. With unbuffered
+	// channels the goroutine would block forever on the send, leaking both the goroutine and the payload it holds.
+	chanPayload := make(chan []byte, 1)
+	chanError := make(chan error, 1)
 	go func() {
 		payload, err := w.fetchFile(ctx, path)
 		if err != nil {
