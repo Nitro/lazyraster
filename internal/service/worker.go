@@ -354,9 +354,21 @@ func (w *Worker) fetchAnnotations(
 	defer func() { span.Finish(ddTracer.WithError(err)) }()
 
 	annotations = make([]any, 0)
+	if w.AnnotationStorage == nil {
+		return annotations, func() {}, nil
+	}
 	originalAnnotations, err := w.AnnotationStorage.FetchAnnotation(ctx, token)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to fetch the annotations: %w", err)
+		// Degrade gracefully: a Redis read failure (for example a failover while a replica is
+		// promoted, or a node blip) must not fail the whole render. Render the page without
+		// annotations instead of returning a 500. Logged and span-tagged so the degradation stays
+		// visible and alertable.
+		span.SetTag("annotations.storage_degraded", true)
+		w.Logger.Warn().
+			Err(err).
+			Int("page", page).
+			Msg("failed to fetch annotations; rendering page without annotations")
+		return annotations, func() {}, nil
 	}
 
 	var temporaryAnnotationFilesMutex sync.Mutex

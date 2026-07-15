@@ -40,6 +40,18 @@ func NewRedisClient(addr, username, password string) (RedisClient, error) {
 		TLSConfig: &tls.Config{
 			MinVersion: tls.VersionTLS12,
 		},
+		// Bound each connection stage so a failover (the primary endpoint is briefly unreachable
+		// while a replica is promoted) or a slow node fails fast and the client reconnects, rather
+		// than hanging until the caller's request deadline is exceeded. MaxRetries lets go-redis
+		// re-establish the connection to the new primary transparently. Conservative starting
+		// points; tune against production latency.
+		DialTimeout:     2 * time.Second,
+		ReadTimeout:     time.Second,
+		WriteTimeout:    time.Second,
+		PoolTimeout:     2 * time.Second,
+		MaxRetries:      2,
+		MinRetryBackoff: 20 * time.Millisecond,
+		MaxRetryBackoff: 200 * time.Millisecond,
 	})
 	ctx, ctxcancel := context.WithTimeout(context.Background(), time.Second)
 	defer ctxcancel()

@@ -260,10 +260,11 @@ func TestWorkerProcess(t *testing.T) {
 	}
 }
 
-// TestWorkerProcessNoGoroutineLeak is a regression test for a goroutine + heap leak in Process. The file is fetched in
-// a goroutine that sends the payload over a channel. When Process returns early on the png path (here, because
-// fetchAnnotations fails) before draining that channel, the goroutine must still be able to complete its send and
-// exit. With unbuffered channels it would block forever, leaking the goroutine and the payload it holds.
+// TestWorkerProcessNoGoroutineLeak is a regression test for a goroutine + heap leak in Process. The file is fetched
+// in a goroutine that sends the payload over a buffered channel. When Process returns early (here, because the
+// requested format is unknown) after the fetch goroutine has started but before draining that channel, the goroutine
+// must still be able to complete its send and exit. With unbuffered channels it would block forever, leaking the
+// goroutine and the payload it holds.
 func TestWorkerProcessNoGoroutineLeak(t *testing.T) {
 	urlSecret := "secret"
 	validToken := urlsign.GenerateToken(urlSecret, 8*time.Hour, time.Now().Add(time.Hour), "documents")
@@ -275,17 +276,12 @@ func TestWorkerProcessNoGoroutineLeak(t *testing.T) {
 	// caller; a plain fake avoids sharing a single drained buffer across goroutines.
 	s3Client := fakeS3{payload: payload}
 
-	var annotationStorage mockWorkerAnnotationStorage
-	annotationStorage.On("FetchAnnotation", mock.Anything, mock.Anything).
-		Return([]any(nil), errors.New("annotation storage is down"))
-
 	w := Worker{
 		HTTPClient:          http.DefaultClient,
 		URLSigningSecret:    urlSecret,
 		TraceExtractor:      traceExtractor,
 		StorageBucketRegion: map[string]string{"bucket-1": "eu-central-1"},
 		getS3Client:         func(string) (workerS3API, error) { return s3Client, nil },
-		AnnotationStorage:   &annotationStorage,
 	}
 	require.NoError(t, w.Init())
 
@@ -296,8 +292,10 @@ func TestWorkerProcessNoGoroutineLeak(t *testing.T) {
 	const iterations = 50
 	url := fmt.Sprintf("documents?token=%s", validToken)
 	for range iterations {
+		// An unknown format returns on the switch's default case: after the fetch goroutine has started but before
+		// the channel is drained — the exact early-return path that previously leaked with unbuffered channels.
 		err := w.Process(
-			context.Background(), url, "bucket-1/file.pdf", 1, 0, 0, 72, bytes.NewBuffer([]byte{}), "png",
+			context.Background(), url, "bucket-1/file.pdf", 1, 0, 0, 72, bytes.NewBuffer([]byte{}), "unknown-format",
 		)
 		require.Error(t, err)
 	}
@@ -308,6 +306,39 @@ func TestWorkerProcessNoGoroutineLeak(t *testing.T) {
 		return runtime.NumGoroutine() <= baseline+5
 	}, 5*time.Second, 20*time.Millisecond,
 		"goroutines did not return to baseline (leak): baseline=%d current=%d", baseline, runtime.NumGoroutine())
+}
+
+// TestWorkerProcessDegradesWhenAnnotationFetchFails verifies that a failing annotation store (for example Redis
+// during a failover) does not fail the render: Process returns no error and still produces a page, just without the
+// baked annotations.
+func TestWorkerProcessDegradesWhenAnnotationFetchFails(t *testing.T) {
+	urlSecret := "secret"
+	validToken := urlsign.GenerateToken(urlSecret, 8*time.Hour, time.Now().Add(time.Hour), "documents")
+
+	payload, err := os.ReadFile("testdata/sample.pdf")
+	require.NoError(t, err)
+
+	var annotationStorage mockWorkerAnnotationStorage
+	annotationStorage.On("FetchAnnotation", mock.Anything, mock.Anything).
+		Return([]any(nil), errors.New("annotation storage is down"))
+
+	w := Worker{
+		HTTPClient:          http.DefaultClient,
+		URLSigningSecret:    urlSecret,
+		TraceExtractor:      traceExtractor,
+		StorageBucketRegion: map[string]string{"bucket-1": "eu-central-1"},
+		getS3Client:         func(string) (workerS3API, error) { return fakeS3{payload: payload}, nil },
+		AnnotationStorage:   &annotationStorage,
+	}
+	require.NoError(t, w.Init())
+
+	output := bytes.NewBuffer([]byte{})
+	url := fmt.Sprintf("documents?token=%s", validToken)
+	err = w.Process(context.Background(), url, "bucket-1/file.pdf", 1, 0, 0, 72, output, "png")
+
+	require.NoError(t, err)
+	require.NotEmpty(t, output.Bytes())
+	annotationStorage.AssertCalled(t, "FetchAnnotation", mock.Anything, mock.Anything)
 }
 
 // fakeS3 returns a fresh reader over payload on every call so concurrent fetches don't share a drained buffer.
