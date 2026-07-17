@@ -99,4 +99,7 @@ func (s *Server) initHandler() {
 	s.router.NotFound(h.notFound)
 	s.router.Get("/health", h.health)
 	s.router.Get("/documents/*", h.document)
+	// Internal-only: the SWS-direct envelopes flow calls this over the cluster network. Must not be
+	// exposed through the public keyless Tyk raster route (enforced by infra: Tyk route + NetworkPolicy).
+	s.router.Post("/render", h.render)
 }

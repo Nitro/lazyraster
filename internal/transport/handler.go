@@ -3,6 +3,7 @@ package transport
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -15,12 +16,14 @@ import (
 	chiMiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/rs/zerolog"
 
+	"github.com/nitro/lazyraster/v2/internal/domain"
 	"github.com/nitro/lazyraster/v2/internal/service"
 )
 
 type handlerDocumentService interface {
 	Process(context.Context, string, string, int, int, float32, int, io.Writer, string) error
 	Metadata(context.Context, string, string) (string, int, error)
+	Render(context.Context, string, int, int, float32, int, string, []any, io.Writer) error
 }
 
 type handler struct {
@@ -192,6 +195,95 @@ func (h handler) metadata(w http.ResponseWriter, r *http.Request) {
 		"PageCount": pageCount,
 	}
 	h.writer.response(r.Context(), w, result, http.StatusOK, "application/json")
+}
+
+// render backs the internal POST /render endpoint used by the SWS-direct envelopes flow. Unlike the
+// signed GET /documents/* path, it takes the S3 location, render params and annotations from the
+// JSON request body — no URL signature and no Redis lookup. It is intended to be reachable only
+// in-cluster (not via the public keyless Tyk raster route); that exposure boundary is enforced by
+// infra (Tyk route + NetworkPolicy), not here.
+func (h handler) render(w http.ResponseWriter, r *http.Request) {
+	reqID := chiMiddleware.GetReqID(r.Context())
+	logger, err := h.traceExtractor(r.Context(), h.logger)
+	if err != nil {
+		logger.Err(err).Str("requestID", reqID).Msg("Could not extract tracing id")
+		h.writer.error(r.Context(), w, fmt.Sprintf("Request ID '%s'", reqID), nil, http.StatusInternalServerError)
+		return
+	}
+
+	var req struct {
+		Path        string          `json:"path"`
+		Page        int             `json:"page"`
+		Width       int             `json:"width"`
+		DPI         int             `json:"dpi"`
+		Scale       float64         `json:"scale"`
+		Format      string          `json:"format"`
+		Modified    int64           `json:"modified"`
+		Annotations json.RawMessage `json:"annotations"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		logger.Err(err).Str("requestID", reqID).Msg("Invalid render request body")
+		h.writer.error(r.Context(), w, fmt.Sprintf("Request ID '%s'", reqID), nil, http.StatusBadRequest)
+		return
+	}
+	if req.Path == "" {
+		logger.Error().Str("requestID", reqID).Msg("Missing 'path' in render request")
+		h.writer.error(r.Context(), w, fmt.Sprintf("Request ID '%s'", reqID), nil, http.StatusBadRequest)
+		return
+	}
+
+	annotations, err := domain.ParseAnnotations(req.Annotations)
+	if err != nil {
+		logger.Err(err).Str("requestID", reqID).Msg("Invalid annotations")
+		h.writer.error(r.Context(), w, fmt.Sprintf("Request ID '%s'", reqID), nil, http.StatusBadRequest)
+		return
+	}
+
+	var contentType string
+	switch req.Format {
+	case "png":
+		contentType = "image/png"
+	case "html":
+		contentType = "text/html"
+	case "":
+		contentType = "image/png"
+		req.Format = "png"
+	default:
+		logger.Error().Str("requestID", reqID).Msg("Invalid 'format' parameter")
+		h.writer.error(r.Context(), w, fmt.Sprintf("Request ID '%s'", reqID), nil, http.StatusBadRequest)
+		return
+	}
+
+	buf := bytes.NewBuffer([]byte{})
+	err = h.documentService.Render(
+		r.Context(), req.Path, req.Page, req.Width, float32(req.Scale), req.DPI, req.Format, annotations, buf,
+	)
+	if ctxErr := r.Context().Err(); ctxErr != nil {
+		logger.Err(ctxErr).Str("requestID", reqID).Msg("Context error")
+		if ctxErr == context.Canceled {
+			return
+		}
+		h.writer.error(r.Context(), w, fmt.Sprintf("Request ID '%s'", reqID), nil, http.StatusRequestTimeout)
+		return
+	}
+	if err != nil {
+		status := http.StatusInternalServerError
+		if errors.Is(err, service.ErrClient) {
+			status = http.StatusBadRequest
+		} else if errors.Is(err, service.ErrNotFound) {
+			status = http.StatusNotFound
+		}
+		logger.Err(err).Str("requestID", reqID).Msg("Error")
+		h.writer.error(r.Context(), w, fmt.Sprintf("Request ID '%s'", reqID), nil, status)
+		return
+	}
+
+	w.Header().Set("content-length", strconv.Itoa(len(buf.Bytes())))
+	w.Header().Set("content-type", contentType)
+	w.WriteHeader(http.StatusOK)
+	if _, err := w.Write(buf.Bytes()); err != nil {
+		logger.Err(err).Str("requestID", reqID).Msg("Fail to write the response back to the client")
+	}
 }
 
 // Remove all the parameters, but the token and page, from the path. Other parameters can then be passed to the service
