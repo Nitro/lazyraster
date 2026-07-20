@@ -187,6 +187,81 @@ func (w *Worker) Process(
 	return nil
 }
 
+// Render renders a single PDF page using annotations supplied directly by the caller, without a URL
+// signature and without consulting Redis. It backs the internal /render endpoint used by the new
+// SWS-direct envelopes flow: annotations arrive in the request body instead of via the annotation
+// store, so this path has no build-time/render-time coupling and no dependency on Redis.
+func (w *Worker) Render(
+	ctx context.Context, path string, page, width int, scale float32, dpi int, format string,
+	annotations []any, output io.Writer,
+) (err error) {
+	span, ctx := w.startSpan(ctx, "Worker.Render")
+	defer func() { span.Finish(ddTracer.WithError(err)) }()
+
+	// The frontend's first page is 1; lazypdf is 0-based.
+	page--
+	if page < 0 {
+		return newClientError(errors.New("invalid page"))
+	}
+	if width < 0 || width > 4096 {
+		return newClientError(fmt.Errorf("invalid width %d, must be between 0 and 4096", width))
+	}
+	if scale < 0 || scale > 3 {
+		return newClientError(fmt.Errorf("invalid scale %v, must be between 0 and 3", scale))
+	}
+	if dpi < 0 || dpi > 600 {
+		return newClientError(fmt.Errorf("invalid dpi %d, must be between 0 and 600", dpi))
+	}
+
+	payload, err := w.fetchFile(ctx, path)
+	if err != nil {
+		return fmt.Errorf("fail to fetch the file: %w", err)
+	}
+	if len(payload) == 0 {
+		return fmt.Errorf("empty payload")
+	}
+
+	storage := bytes.NewBuffer([]byte{})
+	switch format {
+	case "png":
+		processed, cleanup, err := w.preprocessAnnotations(ctx, annotations, page)
+		if err != nil {
+			return fmt.Errorf("failed to preprocess the annotations: %w", err)
+		}
+		defer cleanup()
+
+		if len(processed) > 0 {
+			//nolint:gosec,G115
+			if err := w.SaveToPNGWithAnnotations(
+				ctx, uint16(page), uint16(width), scale, dpi, bytes.NewBuffer(payload), storage, processed,
+			); err != nil {
+				return fmt.Errorf("failed to process annotations and generate PNG: %w", err)
+			}
+		} else {
+			//nolint:gosec,G115
+			if err := lazypdf.SaveToPNG(
+				ctx, uint16(page), uint16(width), scale, dpi, bytes.NewBuffer(payload), storage,
+			); err != nil {
+				return fmt.Errorf("fail to extract the PNG from the PDF: %w", err)
+			}
+		}
+	case "html":
+		//nolint:gosec,G115
+		if err := lazypdf.SaveToHTML(
+			ctx, uint16(page), uint16(width), scale, dpi, bytes.NewBuffer(payload), storage,
+		); err != nil {
+			return fmt.Errorf("fail to render the PDF page to HTML: %w", err)
+		}
+	default:
+		return fmt.Errorf("unknown format '%s'", format)
+	}
+
+	if _, err := io.Copy(output, storage); err != nil {
+		return fmt.Errorf("fail write the result to the output: %w", err)
+	}
+	return nil
+}
+
 // Metadata is used to fetch the document metadata.
 func (w *Worker) Metadata(ctx context.Context, url, path string) (_ string, _ int, err error) {
 	span, ctx := w.startSpan(ctx, "Worker.Metadata")
@@ -359,6 +434,20 @@ func (w *Worker) fetchAnnotations(
 		return nil, nil, fmt.Errorf("failed to fetch the annotations: %w", err)
 	}
 
+	return w.preprocessAnnotations(ctx, originalAnnotations, page)
+}
+
+// preprocessAnnotations filters annotations down to the requested page (0-based) and prepares them
+// for lazypdf: image annotations are downloaded to temporary files so the C layer can consume them.
+// The returned cleanup function removes those temporary files and must always be executed once the
+// annotations are no longer needed; it is only valid when err is nil.
+func (w *Worker) preprocessAnnotations(
+	ctx context.Context, originalAnnotations []any, page int,
+) (annotations []any, cleanup func(), err error) {
+	span, ctx := ddTracer.StartSpanFromContext(ctx, "Worker.preprocessAnnotations")
+	defer func() { span.Finish(ddTracer.WithError(err)) }()
+
+	annotations = make([]any, 0)
 	var temporaryAnnotationFilesMutex sync.Mutex
 	temporaryAnnotationFiles := make([]string, 0)
 	g, gctx := errgroup.WithContext(ctx)

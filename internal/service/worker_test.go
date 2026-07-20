@@ -310,6 +310,48 @@ func TestWorkerProcessNoGoroutineLeak(t *testing.T) {
 		"goroutines did not return to baseline (leak): baseline=%d current=%d", baseline, runtime.NumGoroutine())
 }
 
+// TestWorkerRender verifies the SWS-direct render path produces a page with NO annotation store
+// (Redis) configured: annotations arrive inline, so AnnotationStorage is left nil and is never
+// consulted. This is the core "Redis is out of the render path" guarantee of the new flow.
+func TestWorkerRender(t *testing.T) {
+	t.Parallel()
+
+	payload, err := os.ReadFile("testdata/sample.pdf")
+	require.NoError(t, err)
+
+	w := Worker{
+		HTTPClient:          http.DefaultClient,
+		URLSigningSecret:    "secret",
+		TraceExtractor:      traceExtractor,
+		StorageBucketRegion: map[string]string{"bucket-1": "eu-central-1"},
+		getS3Client:         func(string) (workerS3API, error) { return fakeS3{payload: payload}, nil },
+		// AnnotationStorage intentionally nil: the render path must not depend on Redis.
+	}
+	require.NoError(t, w.Init())
+
+	output := bytes.NewBuffer([]byte{})
+	err = w.Render(context.Background(), "bucket-1/file.pdf", 1, 0, 0, 72, "png", nil, output)
+	require.NoError(t, err)
+	require.NotEmpty(t, output.Bytes())
+}
+
+// TestWorkerRenderInvalidPage verifies input validation surfaces a client error (mapped to 400).
+func TestWorkerRenderInvalidPage(t *testing.T) {
+	t.Parallel()
+
+	w := Worker{
+		HTTPClient:          http.DefaultClient,
+		URLSigningSecret:    "secret",
+		TraceExtractor:      traceExtractor,
+		StorageBucketRegion: map[string]string{"bucket-1": "eu-central-1"},
+		getS3Client:         func(string) (workerS3API, error) { return fakeS3{}, nil },
+	}
+	require.NoError(t, w.Init())
+
+	err := w.Render(context.Background(), "bucket-1/file.pdf", 0, 0, 0, 72, "png", nil, bytes.NewBuffer([]byte{}))
+	require.ErrorIs(t, err, ErrClient)
+}
+
 // fakeS3 returns a fresh reader over payload on every call so concurrent fetches don't share a drained buffer.
 type fakeS3 struct {
 	payload []byte

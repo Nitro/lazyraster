@@ -1,4 +1,4 @@
-package repository
+package domain_test
 
 import (
 	"testing"
@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRedisClientParseAnnotations(t *testing.T) {
+func TestParseAnnotations(t *testing.T) {
 	payload := `
 		[
 			{"type":"checkbox","location":{"x":1.0,"y":1.0},"page":1,"size":{"height":1.0,"width":1.0},"value":true},
@@ -60,8 +60,20 @@ func TestRedisClientParseAnnotations(t *testing.T) {
 		},
 	}
 
-	var c RedisClient
-	result, err := c.parseAnnotations(payload)
+	result, err := domain.ParseAnnotations([]byte(payload))
 	require.NoError(t, err)
 	require.Equal(t, expected, result)
+}
+
+func TestParseAnnotationsEmpty(t *testing.T) {
+	for _, input := range [][]byte{nil, {}, []byte("null"), []byte("[]")} {
+		result, err := domain.ParseAnnotations(input)
+		require.NoError(t, err)
+		require.Empty(t, result)
+	}
+}
+
+func TestParseAnnotationsUnknownType(t *testing.T) {
+	_, err := domain.ParseAnnotations([]byte(`[{"type":"bogus"}]`))
+	require.Error(t, err)
 }

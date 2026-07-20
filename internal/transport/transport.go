@@ -10,6 +10,12 @@ import (
 
 const (
 	maxBodySize = 100000 // 100kb.
+
+	formatPNG  = "png"
+	formatHTML = "html"
+
+	contentTypePNG  = "image/png"
+	contentTypeHTML = "text/html"
 )
 
 type traceExtractor func(context.Context, zerolog.Logger) (zerolog.Logger, error)

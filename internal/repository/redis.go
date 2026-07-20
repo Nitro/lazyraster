@@ -3,7 +3,6 @@ package repository
 import (
 	"context"
 	"crypto/tls"
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -24,7 +23,7 @@ func (rc RedisClient) FetchAnnotation(ctx context.Context, key string) ([]any, e
 		return nil, fmt.Errorf("failed to get the key '%s': %w", key, err)
 	}
 
-	annotations, err := rc.parseAnnotations(result)
+	annotations, err := domain.ParseAnnotations([]byte(result))
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse the annotations: %w", err)
 	}
@@ -49,45 +48,4 @@ func NewRedisClient(addr, username, password string) (RedisClient, error) {
 	return RedisClient{
 		baseClient: rdb,
 	}, nil
-}
-
-func (RedisClient) parseAnnotations(input string) ([]any, error) {
-	var rawEntries []json.RawMessage
-	if err := json.Unmarshal([]byte(input), &rawEntries); err != nil {
-		return nil, err
-	}
-
-	result := make([]any, 0, len(rawEntries))
-	for _, rawEntry := range rawEntries {
-		e := struct {
-			Type string `json:"type"`
-		}{}
-		if err := json.Unmarshal(rawEntry, &e); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal message: %w", err)
-		}
-		switch e.Type {
-		case "checkbox":
-			value := domain.AnnotationCheckbox{}
-			if err := json.Unmarshal(rawEntry, &value); err != nil {
-				return nil, fmt.Errorf("failed to unmarshal message: %w", err)
-			}
-			result = append(result, value)
-		case "image":
-			value := domain.AnnotationImage{}
-			if err := json.Unmarshal(rawEntry, &value); err != nil {
-				return nil, fmt.Errorf("failed to unmarshal message: %w", err)
-			}
-			result = append(result, value)
-		case "text":
-			value := domain.AnnotationText{}
-			if err := json.Unmarshal(rawEntry, &value); err != nil {
-				return nil, fmt.Errorf("failed to unmarshal message: %w", err)
-			}
-			result = append(result, value)
-		default:
-			return nil, fmt.Errorf("unknow annotation type '%s'", e.Type)
-		}
-	}
-
-	return result, nil
 }
