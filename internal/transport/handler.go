@@ -117,13 +117,13 @@ func (h handler) document(w http.ResponseWriter, r *http.Request) {
 	var contentType string
 	format := r.URL.Query().Get("format")
 	switch format {
-	case "png":
-		contentType = "image/png"
-	case "html":
-		contentType = "text/html"
+	case formatPNG:
+		contentType = contentTypePNG
+	case formatHTML:
+		contentType = contentTypeHTML
 	case "":
-		contentType = "image/png"
-		format = "png"
+		contentType = contentTypePNG
+		format = formatPNG
 	default:
 		logger.Err(err).Str("requestID", reqID).Msg("Invalid 'format' parameter")
 		h.writer.error(r.Context(), w, fmt.Sprintf("Request ID '%s'", reqID), nil, http.StatusBadRequest)
@@ -241,13 +241,13 @@ func (h handler) render(w http.ResponseWriter, r *http.Request) {
 
 	var contentType string
 	switch req.Format {
-	case "png":
-		contentType = "image/png"
-	case "html":
-		contentType = "text/html"
+	case formatPNG:
+		contentType = contentTypePNG
+	case formatHTML:
+		contentType = contentTypeHTML
 	case "":
-		contentType = "image/png"
-		req.Format = "png"
+		contentType = contentTypePNG
+		req.Format = formatPNG
 	default:
 		logger.Error().Str("requestID", reqID).Msg("Invalid 'format' parameter")
 		h.writer.error(r.Context(), w, fmt.Sprintf("Request ID '%s'", reqID), nil, http.StatusBadRequest)

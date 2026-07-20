@@ -27,7 +27,9 @@ type fakeDocumentService struct {
 	renderErr         error
 }
 
-func (f *fakeDocumentService) Process(context.Context, string, string, int, int, float32, int, io.Writer, string) error {
+func (f *fakeDocumentService) Process(
+	context.Context, string, string, int, int, float32, int, io.Writer, string,
+) error {
 	return nil
 }
 
