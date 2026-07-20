@@ -27,31 +27,36 @@ func ParseAnnotations(input []byte) ([]any, error) {
 		if err := json.Unmarshal(rawEntry, &discriminator); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal message: %w", err)
 		}
+
+		var (
+			value any
+			err   error
+		)
 		switch discriminator.Type {
 		case "checkbox":
-			value := AnnotationCheckbox{}
-			if err := json.Unmarshal(rawEntry, &value); err != nil {
-				return nil, fmt.Errorf("failed to unmarshal message: %w", err)
-			}
-			result = append(result, value)
+			value, err = decodeAnnotation[AnnotationCheckbox](rawEntry)
 		case "image":
-			value := AnnotationImage{}
-			if err := json.Unmarshal(rawEntry, &value); err != nil {
-				return nil, fmt.Errorf("failed to unmarshal message: %w", err)
-			}
-			result = append(result, value)
+			value, err = decodeAnnotation[AnnotationImage](rawEntry)
 		case "text":
-			value := AnnotationText{}
-			if err := json.Unmarshal(rawEntry, &value); err != nil {
-				return nil, fmt.Errorf("failed to unmarshal message: %w", err)
-			}
-			result = append(result, value)
+			value, err = decodeAnnotation[AnnotationText](rawEntry)
 		default:
 			return nil, fmt.Errorf("unknown annotation type '%s'", discriminator.Type)
 		}
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, value)
 	}
 
 	return result, nil
+}
+
+func decodeAnnotation[T any](raw json.RawMessage) (any, error) {
+	var value T
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal message: %w", err)
+	}
+	return value, nil
 }
 
 type AnnotationLocation struct {

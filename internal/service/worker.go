@@ -203,18 +203,14 @@ func (w *Worker) Render(
 	if page < 0 {
 		return newClientError(errors.New("invalid page"))
 	}
-	if width < 0 {
-		return newClientError(errors.New("invalid width"))
-	} else if width > 4096 {
-		return newClientError(errors.New("invalid width, can't be bigger than 4096"))
+	if width < 0 || width > 4096 {
+		return newClientError(fmt.Errorf("invalid width %d, must be between 0 and 4096", width))
 	}
-	if scale < 0 {
-		return newClientError(errors.New("invalid scale"))
-	} else if scale > 3 {
-		return newClientError(errors.New("invalid scale, can't be bigger than 3"))
+	if scale < 0 || scale > 3 {
+		return newClientError(fmt.Errorf("invalid scale %v, must be between 0 and 3", scale))
 	}
-	if dpi > 600 {
-		return newClientError(errors.New("invalid dpi, can't  be bigger than 600"))
+	if dpi < 0 || dpi > 600 {
+		return newClientError(fmt.Errorf("invalid dpi %d, must be between 0 and 600", dpi))
 	}
 
 	payload, err := w.fetchFile(ctx, path)
