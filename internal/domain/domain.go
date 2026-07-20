@@ -21,13 +21,13 @@ func ParseAnnotations(input []byte) ([]any, error) {
 
 	result := make([]any, 0, len(rawEntries))
 	for _, rawEntry := range rawEntries {
-		e := struct {
+		discriminator := struct {
 			Type string `json:"type"`
 		}{}
-		if err := json.Unmarshal(rawEntry, &e); err != nil {
+		if err := json.Unmarshal(rawEntry, &discriminator); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal message: %w", err)
 		}
-		switch e.Type {
+		switch discriminator.Type {
 		case "checkbox":
 			value := AnnotationCheckbox{}
 			if err := json.Unmarshal(rawEntry, &value); err != nil {
@@ -47,7 +47,7 @@ func ParseAnnotations(input []byte) ([]any, error) {
 			}
 			result = append(result, value)
 		default:
-			return nil, fmt.Errorf("unknow annotation type '%s'", e.Type)
+			return nil, fmt.Errorf("unknown annotation type '%s'", discriminator.Type)
 		}
 	}
 
