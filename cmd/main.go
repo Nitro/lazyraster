@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -34,16 +35,22 @@ func main() {
 		logger.Fatal().Msg("Fail to parse the environment variable 'STORAGE_BUCKET_REGION' payload")
 	}
 
+	maxConcurrentRenders, err := parseMaxConcurrentRenders(os.Getenv("MAX_CONCURRENT_RENDERS"))
+	if err != nil {
+		logger.Fatal().Err(err).Msg("Fail to parse the environment variable 'MAX_CONCURRENT_RENDERS'")
+	}
+
 	waitHandlerAsyncError, waitHandler := wait(logger)
 	client := internal.Client{
-		Logger:              logger,
-		AsyncErrorHandler:   waitHandlerAsyncError,
-		URLSigningSecret:    urlSigningSecret,
-		EnableDatadog:       enableDatadog == "true",
-		StorageBucketRegion: storageBucketRegion,
-		RedisURL:            os.Getenv("REDIS_URL"),
-		RedisUsername:       os.Getenv("REDIS_USERNAME"),
-		RedisPassword:       os.Getenv("REDIS_PASSWORD"),
+		Logger:               logger,
+		AsyncErrorHandler:    waitHandlerAsyncError,
+		URLSigningSecret:     urlSigningSecret,
+		EnableDatadog:        enableDatadog == "true",
+		StorageBucketRegion:  storageBucketRegion,
+		RedisURL:             os.Getenv("REDIS_URL"),
+		RedisUsername:        os.Getenv("REDIS_USERNAME"),
+		RedisPassword:        os.Getenv("REDIS_PASSWORD"),
+		MaxConcurrentRenders: maxConcurrentRenders,
 	}
 	if err := client.Init(); err != nil {
 		logger.Fatal().Err(err).Msg("Fail to initialize the client")
@@ -74,6 +81,22 @@ func wait(logger zerolog.Logger) (func(error), func() int) {
 		return (int)(exitStatus)
 	}
 	return asyncError, handler
+}
+
+// parseMaxConcurrentRenders reads the optional MAX_CONCURRENT_RENDERS override. An empty value means
+// "unset" and returns 0, which lets the service worker fall back to its GOMAXPROCS-derived default.
+func parseMaxConcurrentRenders(payload string) (int, error) {
+	if payload == "" {
+		return 0, nil
+	}
+	value, err := strconv.Atoi(payload)
+	if err != nil {
+		return 0, fmt.Errorf("must be an integer: %w", err)
+	}
+	if value < 1 {
+		return 0, fmt.Errorf("must be greater than zero, got %d", value)
+	}
+	return value, nil
 }
 
 func parseStorageBucketRegion(payload string) (map[string]string, error) {
