@@ -8,12 +8,20 @@ import (
 	"os/signal"
 	"strings"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"github.com/rs/zerolog"
 
 	"github.com/nitro/lazyraster/v2/internal"
 )
+
+// shutdownTimeout bounds the graceful shutdown that a termination signal triggers. It has to exceed
+// the router's own 15s request timeout (internal/transport.Server.initMiddleware) so an in-flight
+// render finishes on its own terms instead of tripping this deadline and turning a clean stop into a
+// Fatal, and it has to stay comfortably inside the pod's terminationGracePeriodSeconds so kubelet
+// does not SIGKILL us part-way through.
+const shutdownTimeout = 20 * time.Second
 
 func main() {
 	var (
@@ -51,7 +59,7 @@ func main() {
 	client.Start()
 
 	exitStatus := waitHandler()
-	ctx, ctxCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, ctxCancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	if err := client.Stop(ctx); err != nil {
 		ctxCancel()
 		logger.Fatal().Err(err).Msg("Fail to stop the client")
@@ -62,16 +70,28 @@ func main() {
 
 func wait(logger zerolog.Logger) (func(error), func() int) {
 	signalChan := make(chan os.Signal, 2)
+
+	// SIGTERM is what Kubernetes and `docker stop` send to ask for a shutdown; SIGINT covers a local
+	// Ctrl-C. Both must be registered: a signal absent from this list keeps its default disposition,
+	// and for SIGTERM that means the runtime kills the process outright, so the handler below never
+	// returns and main never reaches client.Stop. In-flight connections are then severed rather than
+	// drained, which callers' Envoy sidecars report as UC and turn into 503s.
+	//
+	// Registering here rather than inside the handler also covers the window between process start
+	// and the caller invoking the handler, during which the client is already accepting requests.
+	signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM)
+
 	var exitStatus int32
 	asyncError := func(err error) {
 		logger.Error().Err(err).Msg("Async error happened")
-		signalChan <- os.Interrupt
+		// Record the failure before waking the handler: it reads exitStatus as soon as it receives,
+		// so incrementing afterwards races and can report a clean exit for a crash.
 		atomic.AddInt32(&exitStatus, 1)
+		signalChan <- os.Interrupt
 	}
 	handler := func() int {
-		signal.Notify(signalChan, os.Interrupt)
 		<-signalChan
-		return (int)(exitStatus)
+		return int(atomic.LoadInt32(&exitStatus))
 	}
 	return asyncError, handler
 }
