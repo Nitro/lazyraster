@@ -28,9 +28,14 @@ type Client struct {
 	RedisUsername       string
 	RedisPassword       string
 	redisDisabled       bool
+	// PageCacheBucket enables the rendered-page cache when set; the other two are only read with it.
+	PageCacheBucket string
+	PageCacheRegion string
+	PageCachePrefix string
 
 	server        transport.Server
 	serviceWorker service.Worker
+	pageCache     *repository.S3PageCache
 }
 
 // Init the client internal state.
@@ -88,6 +93,22 @@ func (c *Client) Init() (err error) {
 		c.serviceWorker.AnnotationStorage = redisClient
 	}
 
+	if c.PageCacheBucket != "" {
+		pageCache, err := repository.NewS3PageCache(context.Background(), repository.PageCacheConfig{
+			Bucket:     c.PageCacheBucket,
+			Region:     c.PageCacheRegion,
+			Prefix:     c.PageCachePrefix,
+			Logger:     c.Logger,
+			HTTPClient: httpClient,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to create the page cache: %w", err)
+		}
+		c.pageCache = pageCache
+		c.serviceWorker.PageCache = pageCache
+		c.Logger.Info().Str("bucket", c.PageCacheBucket).Msg("Rendered page cache enabled")
+	}
+
 	c.serviceWorker.URLSigningSecret = c.URLSigningSecret
 	c.serviceWorker.HTTPClient = httpClient
 	c.serviceWorker.Logger = c.Logger
@@ -118,6 +139,14 @@ func (c *Client) Stop(ctx context.Context) error {
 	defer tracer.Stop()
 	if err := c.server.Stop(ctx); err != nil {
 		return fmt.Errorf("fail to stop the server")
+	}
+	// After the server, never before: draining the upload queue is only safe once no request can still be
+	// producing page cache writes. A failure to drain loses cache entries and nothing else, so it is
+	// logged rather than propagated into a non-zero exit.
+	if c.pageCache != nil {
+		if err := c.pageCache.Close(ctx); err != nil {
+			c.Logger.Warn().Err(err).Msg("Failed to drain the page cache")
+		}
 	}
 	return nil
 }

@@ -29,12 +29,19 @@ func main() {
 		urlSigningSecret       = os.Getenv("URL_SIGNING_SECRET")
 		enableDatadog          = os.Getenv("ENABLE_DATADOG")
 		rawStorageBucketRegion = os.Getenv("STORAGE_BUCKET_REGION")
+		pageCacheBucket        = os.Getenv("PAGE_CACHE_BUCKET")
 	)
 	if urlSigningSecret == "" {
 		logger.Fatal().Msg("Environment variable 'URL_SIGNING_SECRET' can't be empty")
 	}
 	if rawStorageBucketRegion == "" {
 		logger.Fatal().Msg("Environment variable 'STORAGE_BUCKET_REGION' can't be empty")
+	}
+
+	// The page cache is opt-in and its region is not inferred: the bucket has to be the one in the region
+	// this instance runs in, so a missing region is a misconfiguration rather than something to guess at.
+	if pageCacheBucket != "" && os.Getenv("PAGE_CACHE_REGION") == "" {
+		logger.Fatal().Msg("Environment variable 'PAGE_CACHE_REGION' is required when 'PAGE_CACHE_BUCKET' is set")
 	}
 
 	storageBucketRegion, err := parseStorageBucketRegion(rawStorageBucketRegion)
@@ -52,6 +59,9 @@ func main() {
 		RedisURL:            os.Getenv("REDIS_URL"),
 		RedisUsername:       os.Getenv("REDIS_USERNAME"),
 		RedisPassword:       os.Getenv("REDIS_PASSWORD"),
+		PageCacheBucket:     pageCacheBucket,
+		PageCacheRegion:     os.Getenv("PAGE_CACHE_REGION"),
+		PageCachePrefix:     os.Getenv("PAGE_CACHE_PREFIX"),
 	}
 	if err := client.Init(); err != nil {
 		logger.Fatal().Err(err).Msg("Fail to initialize the client")
