@@ -329,10 +329,19 @@ func TestWorkerRender(t *testing.T) {
 	}
 	require.NoError(t, w.Init())
 
-	output := bytes.NewBuffer([]byte{})
-	err = w.Render(context.Background(), "bucket-1/file.pdf", 1, 0, 0, 72, "png", nil, output)
+	result, err := w.Render(context.Background(), RenderRequest{
+		Path:   "bucket-1/file.pdf",
+		Page:   1,
+		DPI:    72,
+		Format: formatPNG,
+	})
 	require.NoError(t, err)
-	require.NotEmpty(t, output.Bytes())
+	defer result.Body.Close()
+	rendered, err := io.ReadAll(result.Body)
+	require.NoError(t, err)
+	require.NotEmpty(t, rendered)
+	require.False(t, result.Cached)
+	require.EqualValues(t, len(rendered), result.Size)
 }
 
 // TestWorkerRenderInvalidPage verifies input validation surfaces a client error (mapped to 400).
@@ -348,7 +357,12 @@ func TestWorkerRenderInvalidPage(t *testing.T) {
 	}
 	require.NoError(t, w.Init())
 
-	err := w.Render(context.Background(), "bucket-1/file.pdf", 0, 0, 0, 72, "png", nil, bytes.NewBuffer([]byte{}))
+	_, err := w.Render(context.Background(), RenderRequest{
+		Path:   "bucket-1/file.pdf",
+		Page:   0,
+		DPI:    72,
+		Format: formatPNG,
+	})
 	require.ErrorIs(t, err, ErrClient)
 }
 

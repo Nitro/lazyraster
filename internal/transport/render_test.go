@@ -1,30 +1,31 @@
 package transport
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
+
+	"github.com/nitro/lazyraster/v2/internal/service"
 )
 
 // fakeDocumentService records the arguments passed to Render and returns a canned body, so the
 // render handler can be tested in isolation from lazypdf/S3.
 type fakeDocumentService struct {
-	renderPath        string
-	renderPage        int
-	renderWidth       int
-	renderScale       float32
-	renderDPI         int
-	renderFormat      string
-	renderAnnotations []any
-	renderCalled      bool
-	renderOutput      []byte
-	renderErr         error
+	renderRequest service.RenderRequest
+	renderCalled  bool
+	renderOutput  []byte
+	renderCached  bool
+	renderSize    int64
+	renderErr     error
 }
 
 func (f *fakeDocumentService) Process(
@@ -38,22 +39,18 @@ func (f *fakeDocumentService) Metadata(context.Context, string, string) (string,
 }
 
 func (f *fakeDocumentService) Render(
-	_ context.Context, path string, page, width int, scale float32, dpi int, format string,
-	annotations []any, output io.Writer,
-) error {
+	_ context.Context, request service.RenderRequest,
+) (service.RenderResult, error) {
 	f.renderCalled = true
-	f.renderPath = path
-	f.renderPage = page
-	f.renderWidth = width
-	f.renderScale = scale
-	f.renderDPI = dpi
-	f.renderFormat = format
-	f.renderAnnotations = annotations
+	f.renderRequest = request
 	if f.renderErr != nil {
-		return f.renderErr
+		return service.RenderResult{}, f.renderErr
 	}
-	_, err := output.Write(f.renderOutput)
-	return err
+	return service.RenderResult{
+		Body:   io.NopCloser(bytes.NewReader(f.renderOutput)),
+		Size:   f.renderSize,
+		Cached: f.renderCached,
+	}, nil
 }
 
 func newTestHandler(ds handlerDocumentService) handler {
@@ -71,10 +68,11 @@ func newTestHandler(ds handlerDocumentService) handler {
 func TestHandlerRender(t *testing.T) {
 	t.Parallel()
 
-	ds := &fakeDocumentService{renderOutput: []byte("PNGDATA")}
+	ds := &fakeDocumentService{renderOutput: []byte("PNGDATA"), renderSize: int64(len("PNGDATA"))}
 	h := newTestHandler(ds)
 
 	body := `{"path":"bucket/key.pdf","page":2,"width":800,"dpi":150,"scale":1.5,"format":"png",` +
+		`"version":"1754400000000-9f2b1c4d5e6a7b8c9d0e1f2a3b4c5d6e",` +
 		`"annotations":[{"type":"text","value":"hi","page":2,"location":{"x":1,"y":2},` +
 		`"font":{"family":"f","size":10},"size":{"height":3,"width":4}}]}`
 	req := httptest.NewRequest(http.MethodPost, "/render", strings.NewReader(body))
@@ -84,20 +82,54 @@ func TestHandlerRender(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, rr.Code)
 	require.Equal(t, "image/png", rr.Header().Get("content-type"))
+	require.Equal(t, strconv.Itoa(len("PNGDATA")), rr.Header().Get("content-length"))
 	require.Equal(t, "PNGDATA", rr.Body.String())
-	require.Equal(t, "bucket/key.pdf", ds.renderPath)
-	require.Equal(t, 2, ds.renderPage)
-	require.Equal(t, 800, ds.renderWidth)
-	require.Equal(t, 150, ds.renderDPI)
-	require.EqualValues(t, 1.5, ds.renderScale)
-	require.Equal(t, "png", ds.renderFormat)
-	require.Len(t, ds.renderAnnotations, 1)
+	require.Equal(t, "bucket/key.pdf", ds.renderRequest.Path)
+	require.Equal(t, 2, ds.renderRequest.Page)
+	require.Equal(t, 800, ds.renderRequest.Width)
+	require.Equal(t, 150, ds.renderRequest.DPI)
+	require.EqualValues(t, 1.5, ds.renderRequest.Scale)
+	require.Equal(t, "png", ds.renderRequest.Format)
+	require.Equal(t, "1754400000000-9f2b1c4d5e6a7b8c9d0e1f2a3b4c5d6e", ds.renderRequest.Version)
+	require.Len(t, ds.renderRequest.Annotations, 1)
 }
 
-func TestHandlerRenderDefaultsFormatToPNG(t *testing.T) {
+// TestHandlerRenderReportsCacheStatus keeps the hit rate observable from the caller and from a canary.
+func TestHandlerRenderReportsCacheStatus(t *testing.T) {
 	t.Parallel()
 
-	ds := &fakeDocumentService{renderOutput: []byte("X")}
+	tests := []struct {
+		message  string
+		cached   bool
+		expected string
+	}{
+		{message: "hit", cached: true, expected: "hit"},
+		{message: "miss", cached: false, expected: "miss"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.message, func(t *testing.T) {
+			t.Parallel()
+
+			ds := &fakeDocumentService{renderOutput: []byte("PNGDATA"), renderSize: 7, renderCached: tt.cached}
+			h := newTestHandler(ds)
+			req := httptest.NewRequest(http.MethodPost, "/render", strings.NewReader(`{"path":"b/k","page":1}`))
+			rr := httptest.NewRecorder()
+
+			h.render(rr, req)
+
+			require.Equal(t, http.StatusOK, rr.Code)
+			require.Equal(t, tt.expected, rr.Header().Get("x-lazyraster-page-cache"))
+		})
+	}
+}
+
+// TestHandlerRenderOmitsUnknownContentLength covers the streamed case: a cached page whose length S3 did
+// not report must still be written, without a bogus content-length.
+func TestHandlerRenderOmitsUnknownContentLength(t *testing.T) {
+	t.Parallel()
+
+	ds := &fakeDocumentService{renderOutput: []byte("PNGDATA"), renderSize: -1, renderCached: true}
 	h := newTestHandler(ds)
 	req := httptest.NewRequest(http.MethodPost, "/render", strings.NewReader(`{"path":"b/k","page":1}`))
 	rr := httptest.NewRecorder()
@@ -105,8 +137,58 @@ func TestHandlerRenderDefaultsFormatToPNG(t *testing.T) {
 	h.render(rr, req)
 
 	require.Equal(t, http.StatusOK, rr.Code)
-	require.Equal(t, "png", ds.renderFormat)
+	require.Empty(t, rr.Header().Get("content-length"))
+	require.Equal(t, "PNGDATA", rr.Body.String())
+}
+
+// TestHandlerRenderFailure verifies a failed render still answers with an error status rather than an
+// empty 200: the status is only committed once the render has succeeded.
+func TestHandlerRenderFailure(t *testing.T) {
+	t.Parallel()
+
+	ds := &fakeDocumentService{renderErr: errors.New("render exploded")}
+	h := newTestHandler(ds)
+	req := httptest.NewRequest(http.MethodPost, "/render", strings.NewReader(`{"path":"b/k","page":1}`))
+	rr := httptest.NewRecorder()
+
+	h.render(rr, req)
+
+	require.Equal(t, http.StatusInternalServerError, rr.Code)
+	require.NotContains(t, rr.Body.String(), "PNGDATA")
+}
+
+func TestHandlerRenderDefaultsFormatToPNG(t *testing.T) {
+	t.Parallel()
+
+	ds := &fakeDocumentService{renderOutput: []byte("X"), renderSize: 1}
+	h := newTestHandler(ds)
+	req := httptest.NewRequest(http.MethodPost, "/render", strings.NewReader(`{"path":"b/k","page":1}`))
+	rr := httptest.NewRecorder()
+
+	h.render(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+	require.Equal(t, "png", ds.renderRequest.Format)
 	require.Equal(t, "image/png", rr.Header().Get("content-type"))
+}
+
+// TestHandlerRenderNullVersion pins the wire contract with SWS: it sends `"version": null` when it has
+// no version for the content, and that must decode to "no version" rather than rejecting the render.
+func TestHandlerRenderNullVersion(t *testing.T) {
+	t.Parallel()
+
+	ds := &fakeDocumentService{renderOutput: []byte("PNGDATA"), renderSize: 7}
+	h := newTestHandler(ds)
+	body := `{"path":"b/k","page":1,"width":null,"dpi":null,"scale":null,"version":null,"annotations":null}`
+	req := httptest.NewRequest(http.MethodPost, "/render", strings.NewReader(body))
+	rr := httptest.NewRecorder()
+
+	h.render(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+	require.True(t, ds.renderCalled)
+	require.Empty(t, ds.renderRequest.Version)
+	require.Empty(t, ds.renderRequest.Annotations)
 }
 
 func TestHandlerRenderMissingPath(t *testing.T) {

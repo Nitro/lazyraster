@@ -22,6 +22,7 @@ import (
 	"github.com/nitro/lazypdf/v2"
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/singleflight"
 	awsv2trace "gopkg.in/DataDog/dd-trace-go.v1/contrib/aws/aws-sdk-go-v2/aws"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace"
 	ddTracer "gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
@@ -37,6 +38,17 @@ type workerAnnotationStorage interface {
 	FetchAnnotation(context.Context, string) ([]any, error)
 }
 
+// workerPageCache is the rendered-page cache behind the SWS-direct render path. A miss is reported as a
+// nil reader and a nil error, mirroring workerAnnotationStorage.
+//
+// Put is asynchronous and bounded by the implementation: it takes no context because it must outlive the
+// request whose render produced the payload, and it must never block the response on an upload. The
+// payload is not copied, so implementations must treat it as read-only.
+type workerPageCache interface {
+	Get(ctx context.Context, key string) (io.ReadCloser, int64, error)
+	Put(key string, payload []byte)
+}
+
 // Worker used to fetch and process PDF files.
 type Worker struct {
 	HTTPClient          *http.Client
@@ -45,10 +57,13 @@ type Worker struct {
 	TraceExtractor      func(context.Context, zerolog.Logger) (zerolog.Logger, error)
 	StorageBucketRegion map[string]string
 	AnnotationStorage   workerAnnotationStorage
+	// PageCache is optional: nil disables the rendered-page cache and every render is performed.
+	PageCache workerPageCache
 
 	getS3Client func(string) (workerS3API, error)
 	s3Clients   map[string]workerS3API
 	mutex       sync.Mutex
+	renderGroup singleflight.Group
 }
 
 // Init worker internal state.
@@ -128,7 +143,7 @@ func (w *Worker) Process(
 
 	storage := bytes.NewBuffer([]byte{})
 	switch format {
-	case "png":
+	case formatPNG:
 		token, err := w.extractToken(url)
 		if err != nil {
 			return fmt.Errorf("failed to extract the token: %w", err)
@@ -163,7 +178,7 @@ func (w *Worker) Process(
 				return fmt.Errorf("fail to extract the PNG from the PDF: %w", err)
 			}
 		}
-	case "html":
+	case formatHTML:
 		var rawPayload []byte
 		select {
 		case err := <-chanError:
@@ -191,75 +206,126 @@ func (w *Worker) Process(
 // signature and without consulting Redis. It backs the internal /render endpoint used by the new
 // SWS-direct envelopes flow: annotations arrive in the request body instead of via the annotation
 // store, so this path has no build-time/render-time coupling and no dependency on Redis.
-func (w *Worker) Render(
-	ctx context.Context, path string, page, width int, scale float32, dpi int, format string,
-	annotations []any, output io.Writer,
-) (err error) {
+//
+// The render is served from the page cache when it can be: the request hashes to a content-addressed
+// key, so a page already rendered for one viewer is returned to the next without fetching the document
+// or entering lazypdf at all. A cache failure in either direction is logged and ignored -- a cache must
+// never be able to fail a render, which is the lesson of the 2026-07-01 Redis incident.
+func (w *Worker) Render(ctx context.Context, req RenderRequest) (_ RenderResult, err error) {
 	span, ctx := w.startSpan(ctx, "Worker.Render")
 	defer func() { span.Finish(ddTracer.WithError(err)) }()
 
-	// The frontend's first page is 1; lazypdf is 0-based.
-	page--
-	if page < 0 {
-		return newClientError(errors.New("invalid page"))
-	}
-	if width < 0 || width > 4096 {
-		return newClientError(fmt.Errorf("invalid width %d, must be between 0 and 4096", width))
-	}
-	if scale < 0 || scale > 3 {
-		return newClientError(fmt.Errorf("invalid scale %v, must be between 0 and 3", scale))
-	}
-	if dpi < 0 || dpi > 600 {
-		return newClientError(fmt.Errorf("invalid dpi %d, must be between 0 and 600", dpi))
+	if err := req.validate(); err != nil {
+		return RenderResult{}, err
 	}
 
-	payload, err := w.fetchFile(ctx, path)
+	key, err := req.cacheKey()
 	if err != nil {
-		return fmt.Errorf("fail to fetch the file: %w", err)
+		return RenderResult{}, fmt.Errorf("failed to derive the page cache key: %w", err)
+	}
+	// Tagged even when the cache is disabled: comparing the cardinality of this tag against the request
+	// count is how the achievable hit rate gets measured.
+	span.SetTag("pageCache.key", key)
+
+	// No usable version means no safe key: see RenderRequest.Version.
+	cacheable := w.PageCache != nil && keySafeVersion(req.Version)
+	span.SetTag("pageCache.enabled", cacheable)
+
+	if cacheable {
+		body, size, err := w.PageCache.Get(ctx, key)
+		switch {
+		case err != nil:
+			w.Logger.Warn().Err(err).Str("pageCacheKey", key).Msg("Failed to read from the page cache")
+		case body != nil:
+			span.SetTag("pageCache.hit", true)
+			return RenderResult{Body: body, Size: size, Cached: true}, nil
+		}
+		span.SetTag("pageCache.hit", false)
+	}
+
+	// Identical concurrent renders collapse onto one. That matters most on a cold document: the viewer
+	// asks for every page tile at once and several of those requests can be for the same tile, and each
+	// in-flight render holds the whole source document in memory while it runs.
+	//
+	// The shared render runs under the first caller's context, so if that request is cancelled the
+	// followers fail with it rather than silently inheriting a cancelled render. They are retried by the
+	// caller, which is the same disposition as any other transient render failure.
+	shared, err, _ := w.renderGroup.Do(key, func() (any, error) {
+		return w.renderPage(ctx, req)
+	})
+	if err != nil {
+		return RenderResult{}, err
+	}
+	payload, ok := shared.([]byte)
+	if !ok {
+		return RenderResult{}, fmt.Errorf("unexpected render result type '%T'", shared)
+	}
+
+	if cacheable {
+		// Handed over without copying: the payload is never mutated after this point, and a copy per
+		// render is exactly the extra heap this cache exists to avoid.
+		w.PageCache.Put(key, payload)
+	}
+
+	// Several callers can share one payload through the single-flight group, so each gets its own reader
+	// over those immutable bytes rather than a shared, drainable one.
+	return RenderResult{Body: io.NopCloser(bytes.NewReader(payload)), Size: int64(len(payload)), Cached: false}, nil
+}
+
+// renderPage performs the actual render: fetch the source document and rasterise the requested page.
+// It returns the encoded page so the caller can both answer the request and populate the cache from a
+// single render.
+func (w *Worker) renderPage(ctx context.Context, req RenderRequest) (_ []byte, err error) {
+	span, ctx := w.startSpan(ctx, "Worker.renderPage")
+	defer func() { span.Finish(ddTracer.WithError(err)) }()
+
+	// The frontend's first page is 1; lazypdf is 0-based.
+	page := req.Page - 1
+
+	payload, err := w.fetchFile(ctx, req.Path)
+	if err != nil {
+		return nil, fmt.Errorf("fail to fetch the file: %w", err)
 	}
 	if len(payload) == 0 {
-		return fmt.Errorf("empty payload")
+		return nil, errors.New("empty payload")
 	}
 
 	storage := bytes.NewBuffer([]byte{})
-	switch format {
-	case "png":
-		processed, cleanup, err := w.preprocessAnnotations(ctx, annotations, page)
+	switch req.Format {
+	case formatPNG:
+		processed, cleanup, err := w.preprocessAnnotations(ctx, req.Annotations, page)
 		if err != nil {
-			return fmt.Errorf("failed to preprocess the annotations: %w", err)
+			return nil, fmt.Errorf("failed to preprocess the annotations: %w", err)
 		}
 		defer cleanup()
 
 		if len(processed) > 0 {
 			//nolint:gosec,G115
 			if err := w.SaveToPNGWithAnnotations(
-				ctx, uint16(page), uint16(width), scale, dpi, bytes.NewBuffer(payload), storage, processed,
+				ctx, uint16(page), uint16(req.Width), req.Scale, req.DPI, bytes.NewBuffer(payload), storage, processed,
 			); err != nil {
-				return fmt.Errorf("failed to process annotations and generate PNG: %w", err)
+				return nil, fmt.Errorf("failed to process annotations and generate PNG: %w", err)
 			}
 		} else {
 			//nolint:gosec,G115
 			if err := lazypdf.SaveToPNG(
-				ctx, uint16(page), uint16(width), scale, dpi, bytes.NewBuffer(payload), storage,
+				ctx, uint16(page), uint16(req.Width), req.Scale, req.DPI, bytes.NewBuffer(payload), storage,
 			); err != nil {
-				return fmt.Errorf("fail to extract the PNG from the PDF: %w", err)
+				return nil, fmt.Errorf("fail to extract the PNG from the PDF: %w", err)
 			}
 		}
-	case "html":
+	case formatHTML:
 		//nolint:gosec,G115
 		if err := lazypdf.SaveToHTML(
-			ctx, uint16(page), uint16(width), scale, dpi, bytes.NewBuffer(payload), storage,
+			ctx, uint16(page), uint16(req.Width), req.Scale, req.DPI, bytes.NewBuffer(payload), storage,
 		); err != nil {
-			return fmt.Errorf("fail to render the PDF page to HTML: %w", err)
+			return nil, fmt.Errorf("fail to render the PDF page to HTML: %w", err)
 		}
 	default:
-		return fmt.Errorf("unknown format '%s'", format)
+		return nil, fmt.Errorf("unknown format '%s'", req.Format)
 	}
 
-	if _, err := io.Copy(output, storage); err != nil {
-		return fmt.Errorf("fail write the result to the output: %w", err)
-	}
-	return nil
+	return storage.Bytes(), nil
 }
 
 // Metadata is used to fetch the document metadata.
