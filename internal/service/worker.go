@@ -597,16 +597,19 @@ func (w *Worker) SaveToPNGWithAnnotations(
 			}
 			err = ph.AddTextBoxToPage(doc, params)
 		default:
-			return fmt.Errorf("annotation type '%T' not supported", annotation)
+			return newClientError(fmt.Errorf("annotation type '%T' not supported", annotation))
 		}
 		if err != nil {
-			return fmt.Errorf("failed to add an annotation to the PDF: %w", err)
+			// The annotation and the document both come from the caller and are identical on a retry, so this failure is
+			// deterministic: re-rendering cannot change the outcome. Classifying it as a client error stops the caller
+			// retrying it and stops a run of them tripping the caller's circuit breaker for unrelated documents.
+			return newClientError(fmt.Errorf("failed to add an annotation to the PDF: %w", err))
 		}
 	}
 
 	err = ph.SaveToPNG(doc, page, width, scale, dpi, storage)
 	if err != nil {
-		return fmt.Errorf("failed to add an annotation to the PDF: %w", err)
+		return fmt.Errorf("failed to render the annotated PDF to PNG: %w", err)
 	}
 	return nil
 }
