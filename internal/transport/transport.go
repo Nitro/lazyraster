@@ -16,6 +16,12 @@ const (
 
 	contentTypePNG  = "image/png"
 	contentTypeHTML = "text/html"
+
+	// headerPageCache reports whether /render served a cached page. It is there to make the hit rate
+	// observable from the calling service and from a canary, not for any client to act on.
+	headerPageCache = "x-lazyraster-page-cache"
+	pageCacheHit    = "hit"
+	pageCacheMiss   = "miss"
 )
 
 type traceExtractor func(context.Context, zerolog.Logger) (zerolog.Logger, error)

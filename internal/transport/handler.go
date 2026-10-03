@@ -23,7 +23,7 @@ import (
 type handlerDocumentService interface {
 	Process(context.Context, string, string, int, int, float32, int, io.Writer, string) error
 	Metadata(context.Context, string, string) (string, int, error)
-	Render(context.Context, string, int, int, float32, int, string, []any, io.Writer) error
+	Render(context.Context, service.RenderRequest) (service.RenderResult, error)
 }
 
 type handler struct {
@@ -218,7 +218,7 @@ func (h handler) render(w http.ResponseWriter, r *http.Request) {
 		DPI         int             `json:"dpi"`
 		Scale       float64         `json:"scale"`
 		Format      string          `json:"format"`
-		Modified    int64           `json:"modified"`
+		Version     string          `json:"version"`
 		Annotations json.RawMessage `json:"annotations"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -254,10 +254,16 @@ func (h handler) render(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	buf := bytes.NewBuffer([]byte{})
-	err = h.documentService.Render(
-		r.Context(), req.Path, req.Page, req.Width, float32(req.Scale), req.DPI, req.Format, annotations, buf,
-	)
+	result, err := h.documentService.Render(r.Context(), service.RenderRequest{
+		Path:        req.Path,
+		Page:        req.Page,
+		Width:       req.Width,
+		Scale:       float32(req.Scale),
+		DPI:         req.DPI,
+		Format:      req.Format,
+		Version:     req.Version,
+		Annotations: annotations,
+	})
 	if ctxErr := r.Context().Err(); ctxErr != nil {
 		logger.Err(ctxErr).Str("requestID", reqID).Msg("Context error")
 		if ctxErr == context.Canceled {
@@ -277,13 +283,27 @@ func (h handler) render(w http.ResponseWriter, r *http.Request) {
 		h.writer.error(r.Context(), w, fmt.Sprintf("Request ID '%s'", reqID), nil, status)
 		return
 	}
+	defer result.Body.Close()
 
-	w.Header().Set("content-length", strconv.Itoa(len(buf.Bytes())))
+	// The page is copied straight through: on a cache hit that streams it from S3 to the caller without
+	// the render ever being buffered here. The status is committed only once the render has succeeded, so
+	// a failure still answers with an error rather than a truncated image.
+	if result.Size >= 0 {
+		w.Header().Set("content-length", strconv.FormatInt(result.Size, 10))
+	}
 	w.Header().Set("content-type", contentType)
+	w.Header().Set(headerPageCache, pageCacheStatus(result.Cached))
 	w.WriteHeader(http.StatusOK)
-	if _, err := w.Write(buf.Bytes()); err != nil {
+	if _, err := io.Copy(w, result.Body); err != nil {
 		logger.Err(err).Str("requestID", reqID).Msg("Fail to write the response back to the client")
 	}
+}
+
+func pageCacheStatus(cached bool) string {
+	if cached {
+		return pageCacheHit
+	}
+	return pageCacheMiss
 }
 
 // Remove all the parameters, but the token and page, from the path. Other parameters can then be passed to the service
