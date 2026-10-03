@@ -27,7 +27,10 @@ type Client struct {
 	RedisURL            string
 	RedisUsername       string
 	RedisPassword       string
-	redisDisabled       bool
+	// MaxConcurrentRenders bounds concurrent rasterization per pod to keep peak memory under the
+	// container limit; see service.Worker.MaxConcurrentRenders. Zero uses the worker's default.
+	MaxConcurrentRenders int
+	redisDisabled        bool
 
 	server        transport.Server
 	serviceWorker service.Worker
@@ -93,6 +96,7 @@ func (c *Client) Init() (err error) {
 	c.serviceWorker.Logger = c.Logger
 	c.serviceWorker.TraceExtractor = traceLogger(c.EnableDatadog)
 	c.serviceWorker.StorageBucketRegion = c.StorageBucketRegion
+	c.serviceWorker.MaxConcurrentRenders = c.MaxConcurrentRenders
 	if err := c.serviceWorker.Init(); err != nil {
 		return fmt.Errorf("fail to initialize service worker: %w", err)
 	}

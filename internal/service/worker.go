@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -37,6 +38,12 @@ type workerAnnotationStorage interface {
 	FetchAnnotation(context.Context, string) ([]any, error)
 }
 
+// defaultRendersPerCPU derives Worker.MaxConcurrentRenders from the CPU budget when it is not set
+// explicitly. Rasterization is CPU-bound in the lazypdf C layer, so scaling with GOMAXPROCS keeps the
+// bound sensible across pod sizes; the multiplier lets a file fetch overlap an in-flight render
+// without letting concurrent renders grow without limit.
+const defaultRendersPerCPU = 2
+
 // Worker used to fetch and process PDF files.
 type Worker struct {
 	HTTPClient          *http.Client
@@ -46,8 +53,16 @@ type Worker struct {
 	StorageBucketRegion map[string]string
 	AnnotationStorage   workerAnnotationStorage
 
+	// MaxConcurrentRenders bounds how many rasterization operations may run on this worker at once.
+	// Rasterizing a PDF holds the whole source file and the rendered output in memory and triggers
+	// allocations in the lazypdf C layer that GOMEMLIMIT cannot account for, so without a cap a burst
+	// of large or complex documents can drive the pod past its memory limit and get it OOMKilled,
+	// which surfaces to callers as 503s. Values <= 0 fall back to a GOMAXPROCS-derived default in Init.
+	MaxConcurrentRenders int
+
 	getS3Client func(string) (workerS3API, error)
 	s3Clients   map[string]workerS3API
+	renderSem   chan struct{}
 	mutex       sync.Mutex
 }
 
@@ -69,7 +84,29 @@ func (w *Worker) Init() error {
 		w.getS3Client = w.getBucketS3Client
 	}
 	w.s3Clients = make(map[string]workerS3API)
+
+	if w.MaxConcurrentRenders <= 0 {
+		w.MaxConcurrentRenders = runtime.GOMAXPROCS(0) * defaultRendersPerCPU
+	}
+	w.renderSem = make(chan struct{}, w.MaxConcurrentRenders)
 	return nil
+}
+
+// acquireRenderSlot blocks until a rasterization slot is available or ctx is done, bounding the
+// number of concurrent renders (see Worker.MaxConcurrentRenders) so a single pod cannot allocate more
+// memory than its limit allows and get OOMKilled. The returned release function frees the slot and
+// must always be called once rendering is complete. When ctx is cancelled or times out before a slot
+// frees, it returns the context error and no slot is held.
+func (w *Worker) acquireRenderSlot(ctx context.Context) (release func(), err error) {
+	span, ctx := ddTracer.StartSpanFromContext(ctx, "internal/service/Worker.acquireRenderSlot")
+	defer func() { span.Finish(ddTracer.WithError(err)) }()
+
+	select {
+	case w.renderSem <- struct{}{}:
+		return func() { <-w.renderSem }, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
 }
 
 func (w *Worker) Process(
@@ -104,6 +141,14 @@ func (w *Worker) Process(
 	if !urlsign.IsValidSignature(w.URLSigningSecret, 8*time.Hour, time.Now(), url) {
 		return newClientError(errors.New("invalid token"))
 	}
+
+	// Bound concurrent rasterization before pulling the file into memory, so a burst of requests can't
+	// stack their payloads and renders past the pod's memory limit and trigger an OOMKill.
+	releaseRenderSlot, err := w.acquireRenderSlot(ctx)
+	if err != nil {
+		return fmt.Errorf("fail to acquire a render slot: %w", err)
+	}
+	defer releaseRenderSlot()
 
 	// Fetch the file in a goroutine to allow the annotations to be processed while the payload is being fetch. The
 	// channels are buffered so the goroutine can always complete its single send and exit, even when Process returns
@@ -212,6 +257,14 @@ func (w *Worker) Render(
 	if dpi < 0 || dpi > 600 {
 		return newClientError(fmt.Errorf("invalid dpi %d, must be between 0 and 600", dpi))
 	}
+
+	// Bound concurrent rasterization before pulling the file into memory, so a burst of requests can't
+	// stack their payloads and renders past the pod's memory limit and trigger an OOMKill.
+	releaseRenderSlot, err := w.acquireRenderSlot(ctx)
+	if err != nil {
+		return fmt.Errorf("fail to acquire a render slot: %w", err)
+	}
+	defer releaseRenderSlot()
 
 	payload, err := w.fetchFile(ctx, path)
 	if err != nil {

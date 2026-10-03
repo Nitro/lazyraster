@@ -352,6 +352,56 @@ func TestWorkerRenderInvalidPage(t *testing.T) {
 	require.ErrorIs(t, err, ErrClient)
 }
 
+// TestWorkerInitDefaultsMaxConcurrentRenders verifies that leaving MaxConcurrentRenders unset falls
+// back to the GOMAXPROCS-derived default and sizes the semaphore accordingly.
+func TestWorkerInitDefaultsMaxConcurrentRenders(t *testing.T) {
+	t.Parallel()
+
+	w := Worker{
+		HTTPClient:          http.DefaultClient,
+		URLSigningSecret:    "secret",
+		TraceExtractor:      traceExtractor,
+		StorageBucketRegion: map[string]string{"bucket-1": "eu-central-1"},
+		getS3Client:         func(string) (workerS3API, error) { return fakeS3{}, nil },
+	}
+	require.NoError(t, w.Init())
+
+	require.Equal(t, runtime.GOMAXPROCS(0)*defaultRendersPerCPU, w.MaxConcurrentRenders)
+	require.Equal(t, w.MaxConcurrentRenders, cap(w.renderSem))
+}
+
+// TestWorkerAcquireRenderSlot verifies the semaphore bounds concurrency: once the limit is reached a
+// further acquire blocks until a slot is released, and honours context cancellation while waiting.
+func TestWorkerAcquireRenderSlot(t *testing.T) {
+	t.Parallel()
+
+	w := Worker{
+		HTTPClient:           http.DefaultClient,
+		URLSigningSecret:     "secret",
+		TraceExtractor:       traceExtractor,
+		StorageBucketRegion:  map[string]string{"bucket-1": "eu-central-1"},
+		getS3Client:          func(string) (workerS3API, error) { return fakeS3{}, nil },
+		MaxConcurrentRenders: 1,
+	}
+	require.NoError(t, w.Init())
+
+	// Take the only slot.
+	release, err := w.acquireRenderSlot(context.Background())
+	require.NoError(t, err)
+
+	// A second acquire must fail once its context is done rather than wait forever.
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	_, err = w.acquireRenderSlot(ctx)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+
+	// Releasing the first slot lets the next acquire succeed.
+	release()
+	release2, err := w.acquireRenderSlot(context.Background())
+	require.NoError(t, err)
+	release2()
+}
+
 // fakeS3 returns a fresh reader over payload on every call so concurrent fetches don't share a drained buffer.
 type fakeS3 struct {
 	payload []byte
